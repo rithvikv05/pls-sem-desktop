@@ -3,7 +3,7 @@ import { useStore, type AppTab } from '../store';
 import WorkspaceModal from './WorkspaceModal';
 
 export const TabBar: React.FC = () => {
-  const { tabs, activeTabId, setActiveTab, closeTab, openTab, workspaces, reorderTabs } = useStore();
+  const { tabs, activeTabId, setActiveTab, closeTab, openTab, workspaces, reorderTabs, setActiveWorkspace, renameWorkspace } = useStore();
   const scrollRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -12,12 +12,32 @@ export const TabBar: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  // Drag-to-reorder state
-  const dragTabId = useRef<string | null>(null);
-  const dragWsId = useRef<string | null>(null);
-  const dragOverTabId = useRef<string | null>(null);
+  // ─── Drag & Slide State ───────────────────────────────────────────────────
+  // 1. Sliding a child tab within an expanded group
+  interface ChildSlideState {
+    tabId: string;
+    wsId: string;
+    deltaX: number;
+    originIndex: number;
+    hoverIndex: number;
+    itemWidth: number;
+    isSliding: boolean;
+  }
+  const [childSlide, setChildSlide] = useState<ChildSlideState | null>(null);
 
-  // Close dropdown on outside click and reset search
+  // 2. Sliding a top-level strip item (standalone tab or entire workspace group)
+  interface StripSlideState {
+    type: 'standalone' | 'group';
+    id: string; // tab.id or workspaceId
+    deltaX: number;
+    originIndex: number;
+    hoverIndex: number;
+    itemWidth: number;
+    isSliding: boolean;
+  }
+  const [stripSlide, setStripSlide] = useState<StripSlideState | null>(null);
+
+  // ─── Dropdown Behavior ────────────────────────────────────────────────────
   useEffect(() => {
     if (!isDropdownOpen) {
       setSearchQuery('');
@@ -30,7 +50,6 @@ export const TabBar: React.FC = () => {
     };
     window.addEventListener('mousedown', handleOutsideClick);
 
-    // Auto-focus search input when opened
     const timer = setTimeout(() => {
       searchInputRef.current?.focus();
     }, 40);
@@ -41,7 +60,7 @@ export const TabBar: React.FC = () => {
     };
   }, [isDropdownOpen]);
 
-  // Keyboard shortcut listeners: Cmd/Ctrl + W to close active tab, Cmd/Ctrl + T to open Get Started tab
+  // Keyboard shortcut listeners: Cmd/Ctrl + W, Cmd/Ctrl + T
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const isCmdOrCtrl = e.metaKey || e.ctrlKey;
@@ -60,7 +79,7 @@ export const TabBar: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [activeTabId, closeTab]);
 
-  // Scroll active tab into view if needed
+  // Scroll active tab into view
   useEffect(() => {
     if (!scrollRef.current) return;
     const activeEl = scrollRef.current.querySelector('.tab-item--active') as HTMLElement | null;
@@ -73,7 +92,7 @@ export const TabBar: React.FC = () => {
     ws.name.toLowerCase().includes(searchQuery.toLowerCase().trim())
   );
 
-  // Track collapsed state per workspace group
+  // ─── Workspace Group Collapsing ───────────────────────────────────────────
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
   const [groupContextMenu, setGroupContextMenu] = useState<{
     wsId: string;
@@ -83,7 +102,6 @@ export const TabBar: React.FC = () => {
     y: number;
   } | null>(null);
 
-  // Close group context menu on click outside
   useEffect(() => {
     if (!groupContextMenu) return;
     const handleClose = () => setGroupContextMenu(null);
@@ -91,26 +109,53 @@ export const TabBar: React.FC = () => {
     return () => window.removeEventListener('mousedown', handleClose);
   }, [groupContextMenu]);
 
-  // Auto-expand group if active tab belongs to it.
-  // Use a ref for collapsedGroups so the effect only re-runs when activeTabId or tabs change,
-  // not when collapsedGroups changes — otherwise toggling collapse immediately re-expands.
-  const collapsedGroupsRef = useRef(collapsedGroups);
-  collapsedGroupsRef.current = collapsedGroups;
-
-  useEffect(() => {
-    if (!activeTabId) return;
-    const activeTab = tabs.find((t) => t.id === activeTabId);
-    if (activeTab?.workspaceId && collapsedGroupsRef.current[activeTab.workspaceId]) {
-      setCollapsedGroups((prev) => ({ ...prev, [activeTab.workspaceId!]: false }));
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTabId, tabs]);
-
   const toggleGroupCollapse = (wsId: string) => {
     setCollapsedGroups((prev) => ({
       ...prev,
       [wsId]: !prev[wsId],
     }));
+  };
+
+  const openWorkspaceDirectory = (wsId: string, wsName: string) => {
+    setActiveWorkspace(wsId);
+    const existingWsTab = tabs.find((t) => t.workspaceId === wsId && t.type === 'workspace');
+    if (existingWsTab) {
+      setActiveTab(existingWsTab.id);
+    } else {
+      openTab({
+        type: 'workspace',
+        title: wsName,
+        workspaceId: wsId,
+      });
+    }
+  };
+
+  // ─── Inline Workspace Renaming ─────────────────────────────────────────────
+  const [editingWorkspaceId, setEditingWorkspaceId] = useState<string | null>(null);
+  const [editWorkspaceName, setEditWorkspaceName] = useState('');
+  const renameInputRef = useRef<HTMLInputElement>(null);
+
+  const startRenaming = (wsId: string, currentName: string) => {
+    setEditingWorkspaceId(wsId);
+    setEditWorkspaceName(currentName);
+  };
+
+  useEffect(() => {
+    if (editingWorkspaceId && renameInputRef.current) {
+      renameInputRef.current.focus();
+      renameInputRef.current.select();
+    }
+  }, [editingWorkspaceId]);
+
+  const commitRename = () => {
+    if (editingWorkspaceId && editWorkspaceName.trim()) {
+      renameWorkspace(editingWorkspaceId, editWorkspaceName.trim());
+    }
+    setEditingWorkspaceId(null);
+  };
+
+  const cancelRename = () => {
+    setEditingWorkspaceId(null);
   };
 
   const closeGroup = (tabIds: string[]) => {
@@ -135,18 +180,16 @@ export const TabBar: React.FC = () => {
     }
   };
 
-  // Alternating two-color palette: purple then neutral, cycling per group index
   const GROUP_PALETTE = [
     { bg: 'rgba(107, 78, 230, 0.09)', border: 'rgba(107, 78, 230, 0.26)', text: '#5936d9' },
     { bg: 'rgba(0, 0, 0, 0.04)', border: 'rgba(0,0,0,0.10)', text: 'var(--color-text-secondary)' },
   ];
 
-  // Assign palette by insertion order, not hash, so 1st group = purple, 2nd = white, etc.
-  const getWorkspaceColor = (workspaceId: string, groupIndex: number) => {
+  const getWorkspaceColor = (_workspaceId: string, groupIndex: number) => {
     return GROUP_PALETTE[groupIndex % GROUP_PALETTE.length];
   };
 
-  // Partition tabs into standalone tabs and workspace groups
+  // ─── Partition tabs into top-level Strip Items ────────────────────────────
   type TabStripItem =
     | { kind: 'standalone'; tab: AppTab }
     | {
@@ -184,30 +227,352 @@ export const TabBar: React.FC = () => {
     }
   }
 
-  const moveWorkspaceTabs = (fromWsId: string, targetTabId: string) => {
+  const moveWorkspaceTabs = (fromWsId: string, targetTabId: string, insertAfter = false) => {
     const wsTabs = tabs.filter((t) => t.workspaceId === fromWsId);
     if (wsTabs.length === 0) return;
 
     const remainingTabs = tabs.filter((t) => t.workspaceId !== fromWsId);
-    let insertIdx = remainingTabs.findIndex((t) => t.id === targetTabId);
-    if (insertIdx === -1) insertIdx = remainingTabs.length;
+    let targetIdx = remainingTabs.findIndex((t) => t.id === targetTabId);
+    if (targetIdx === -1) {
+      targetIdx = remainingTabs.length;
+    } else if (insertAfter) {
+      targetIdx = targetIdx + 1;
+    }
 
     const newTabs = [...remainingTabs];
-    newTabs.splice(insertIdx, 0, ...wsTabs);
+    newTabs.splice(targetIdx, 0, ...wsTabs);
     useStore.setState({ tabs: newTabs });
   };
 
-  const renderSingleTab = (tab: AppTab, isInsideGroup = false) => {
+  // ─── Level 1: Sliding Child Tabs Inside an Expanded Group ─────────────────
+  const handleChildTabMouseDown = (
+    e: React.MouseEvent,
+    tab: AppTab,
+    childTabs: AppTab[],
+    wsId: string,
+    stripItem: TabStripItem
+  ) => {
+    if (e.button !== 0) return;
+    if ((e.target as HTMLElement).closest('.tab-close-btn')) return;
+
+    // Immediately activate tab
+    setActiveTab(tab.id);
+
+    // If there is only 1 child tab, delegate to sliding the whole group along the strip!
+    if (childTabs.length <= 1) {
+      handleStripItemMouseDown(e, stripItem);
+      return;
+    }
+
+    const currentTarget = e.currentTarget as HTMLElement;
+    const containerEl = currentTarget.parentElement;
+    if (!containerEl) return;
+
+    const originIndex = childTabs.findIndex((t) => t.id === tab.id);
+    if (originIndex === -1) return;
+
+    const initialRect = currentTarget.getBoundingClientRect();
+    const containerRect = containerEl.getBoundingClientRect();
+    const startX = e.clientX;
+    const itemWidth = initialRect.width;
+
+    const childEls = Array.from(containerEl.querySelectorAll<HTMLElement>('[data-group-child-id]'));
+    const rectMap = childEls.map((el, idx) => {
+      const id = el.getAttribute('data-group-child-id')!;
+      const rect = el.getBoundingClientRect();
+      return {
+        id,
+        index: idx,
+        left: rect.left,
+        right: rect.right,
+        width: rect.width,
+      };
+    });
+
+    let isStarted = false;
+    let currentHoverIndex = originIndex;
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      const rawDeltaX = moveEvent.clientX - startX;
+
+      if (!isStarted) {
+        if (Math.abs(rawDeltaX) > 4) {
+          isStarted = true;
+          document.body.classList.add('is-tab-sliding');
+        } else {
+          return;
+        }
+      }
+
+      // Clamp movement inside the group's child tabs container
+      const minDelta = containerRect.left - initialRect.left;
+      const maxDelta = containerRect.right - initialRect.right;
+      const safeMaxDelta = Math.max(minDelta, maxDelta);
+      const clampedDeltaX = Math.max(minDelta, Math.min(safeMaxDelta, rawDeltaX));
+
+      let newHoverIndex = originIndex;
+      if (clampedDeltaX > 0) {
+        let accumulated = 0;
+        for (let i = originIndex + 1; i < rectMap.length; i++) {
+          const nextWidth = rectMap[i].width;
+          if (clampedDeltaX > accumulated + nextWidth / 2) {
+            newHoverIndex = i;
+          }
+          accumulated += nextWidth + 3;
+        }
+      } else if (clampedDeltaX < 0) {
+        let accumulated = 0;
+        for (let i = originIndex - 1; i >= 0; i--) {
+          const prevWidth = rectMap[i].width;
+          if (Math.abs(clampedDeltaX) > accumulated + prevWidth / 2) {
+            newHoverIndex = i;
+          }
+          accumulated += prevWidth + 3;
+        }
+      }
+
+      currentHoverIndex = newHoverIndex;
+
+      setChildSlide({
+        tabId: tab.id,
+        wsId,
+        deltaX: clampedDeltaX,
+        originIndex,
+        hoverIndex: newHoverIndex,
+        itemWidth,
+        isSliding: true,
+      });
+    };
+
+    const onMouseUp = () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+      document.body.classList.remove('is-tab-sliding');
+
+      if (isStarted && currentHoverIndex !== originIndex) {
+        const targetChildTab = childTabs[currentHoverIndex];
+        if (targetChildTab) {
+          const fromGlobal = tabs.findIndex((t) => t.id === tab.id);
+          const toGlobal = tabs.findIndex((t) => t.id === targetChildTab.id);
+          if (fromGlobal !== -1 && toGlobal !== -1) {
+            reorderTabs(fromGlobal, toGlobal);
+          }
+        }
+      }
+
+      setChildSlide(null);
+    };
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+  };
+
+  // ─── Level 2: Sliding Top-level Strip Items (Standalone & Workspace Groups)
+  const handleStripItemMouseDown = (
+    e: React.MouseEvent,
+    item: TabStripItem
+  ) => {
+    if (e.button !== 0) return;
+    if ((e.target as HTMLElement).closest('.tab-close-btn')) return;
+    if ((e.target as HTMLElement).closest('.tab-group-chevron-btn')) return;
+
+    // Immediately activate standalone tab
+    if (item.kind === 'standalone') {
+      setActiveTab(item.tab.id);
+    }
+
+    const strip = scrollRef.current;
+    if (!strip) return;
+
+    const itemId = item.kind === 'standalone' ? item.tab.id : item.workspaceId;
+    const currentTarget = e.currentTarget as HTMLElement;
+    const stripItemEl = currentTarget.closest<HTMLElement>('[data-strip-item-id]');
+    if (!stripItemEl) return;
+
+    const initialRect = stripItemEl.getBoundingClientRect();
+    const stripRect = strip.getBoundingClientRect();
+    const startX = e.clientX;
+    const itemWidth = initialRect.width;
+
+    const stripItemEls = Array.from(strip.querySelectorAll<HTMLElement>('[data-strip-item-id]'));
+    const rectMap = stripItemEls.map((el) => {
+      const id = el.getAttribute('data-strip-item-id')!;
+      const rect = el.getBoundingClientRect();
+      return {
+        id,
+        left: rect.left,
+        right: rect.right,
+        width: rect.width,
+      };
+    });
+
+    const originIndex = rectMap.findIndex((r) => r.id === itemId);
+    if (originIndex === -1) return;
+
+    let isStarted = false;
+    let currentHoverIndex = originIndex;
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      const rawDeltaX = moveEvent.clientX - startX;
+
+      if (!isStarted) {
+        if (Math.abs(rawDeltaX) > 4) {
+          isStarted = true;
+          document.body.classList.add('is-tab-sliding');
+        } else {
+          return;
+        }
+      }
+
+      // Strictly clamp inside the tabstrip with a 4px inner border
+      // so it never slides under the logo on the left or behind the plus button on the right
+      const minDelta = stripRect.left + 4 - initialRect.left;
+      const maxDelta = stripRect.right - 4 - initialRect.right;
+      const safeMaxDelta = Math.max(minDelta, maxDelta);
+      const clampedDeltaX = Math.max(minDelta, Math.min(safeMaxDelta, rawDeltaX));
+
+      let newHoverIndex = originIndex;
+      if (clampedDeltaX > 0) {
+        let accumulated = 0;
+        for (let i = originIndex + 1; i < rectMap.length; i++) {
+          const nextWidth = rectMap[i].width;
+          if (clampedDeltaX > accumulated + nextWidth / 2) {
+            newHoverIndex = i;
+          }
+          accumulated += nextWidth + 4;
+        }
+      } else if (clampedDeltaX < 0) {
+        let accumulated = 0;
+        for (let i = originIndex - 1; i >= 0; i--) {
+          const prevWidth = rectMap[i].width;
+          if (Math.abs(clampedDeltaX) > accumulated + prevWidth / 2) {
+            newHoverIndex = i;
+          }
+          accumulated += prevWidth + 4;
+        }
+      }
+
+      currentHoverIndex = newHoverIndex;
+
+      setStripSlide({
+        type: item.kind,
+        id: itemId,
+        deltaX: clampedDeltaX,
+        originIndex,
+        hoverIndex: newHoverIndex,
+        itemWidth,
+        isSliding: true,
+      });
+    };
+
+    const onMouseUp = () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+      document.body.classList.remove('is-tab-sliding');
+
+      if (isStarted) {
+        if (currentHoverIndex !== originIndex) {
+          const targetRect = rectMap[currentHoverIndex];
+          if (targetRect) {
+            const targetItem = stripItems.find((si) =>
+              si.kind === 'standalone' ? si.tab.id === targetRect.id : si.workspaceId === targetRect.id
+            );
+            if (targetItem) {
+              const insertAfter = currentHoverIndex > originIndex;
+              if (item.kind === 'standalone') {
+                const fromGlobal = tabs.findIndex((t) => t.id === item.tab.id);
+                const targetTab = targetItem.kind === 'standalone'
+                  ? targetItem.tab
+                  : (insertAfter ? targetItem.tabs[targetItem.tabs.length - 1] : targetItem.tabs[0]);
+                const toGlobal = tabs.findIndex((t) => t.id === targetTab.id);
+                if (fromGlobal !== -1 && toGlobal !== -1) {
+                  reorderTabs(fromGlobal, toGlobal);
+                }
+              } else {
+                // Group
+                const targetTabId = targetItem.kind === 'standalone'
+                  ? targetItem.tab.id
+                  : (insertAfter ? targetItem.tabs[targetItem.tabs.length - 1].id : targetItem.tabs[0].id);
+                moveWorkspaceTabs(item.workspaceId, targetTabId, insertAfter);
+              }
+            }
+          }
+        }
+      } else {
+        // Plain click without dragging
+        if (item.kind === 'standalone') {
+          setActiveTab(item.tab.id);
+        } else {
+          openWorkspaceDirectory(item.workspaceId, item.workspaceName);
+        }
+      }
+
+      setStripSlide(null);
+    };
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+  };
+
+  // ─── Render Standalone Tab ────────────────────────────────────────────────
+  const renderStandaloneTab = (tab: AppTab, itemIndex: number, stripItem: TabStripItem) => {
     const isActive = tab.id === activeTabId;
     const iconName = getTabIcon(tab);
     const label = tab.type === 'get-started' ? 'Home' : tab.title;
-    const tabFlatIndex = tabs.findIndex((t) => t.id === tab.id);
+    const itemId = stripItem.kind === 'standalone' ? stripItem.tab.id : stripItem.workspaceId;
+
+    let slidingStyle: React.CSSProperties | undefined;
+    let slidingClass = '';
+
+    if (stripSlide && stripSlide.isSliding) {
+      if (stripSlide.id === itemId) {
+        slidingClass = 'tab-item--sliding';
+        slidingStyle = {
+          transform: `translateX(${stripSlide.deltaX}px)`,
+          zIndex: 100,
+          position: 'relative',
+        };
+      } else if (stripSlide.originIndex < stripSlide.hoverIndex) {
+        if (itemIndex > stripSlide.originIndex && itemIndex <= stripSlide.hoverIndex) {
+          slidingClass = 'tab-item--shifting';
+          slidingStyle = {
+            transform: `translateX(-${stripSlide.itemWidth + 4}px)`,
+          };
+        }
+      } else if (stripSlide.originIndex > stripSlide.hoverIndex) {
+        if (itemIndex >= stripSlide.hoverIndex && itemIndex < stripSlide.originIndex) {
+          slidingClass = 'tab-item--shifting';
+          slidingStyle = {
+            transform: `translateX(${stripSlide.itemWidth + 4}px)`,
+          };
+        }
+      }
+    }
+
+    const isWs = tab.type === 'workspace' && !!tab.workspaceId;
+    const wsId = isWs ? tab.workspaceId! : (stripItem.kind === 'group' ? stripItem.workspaceId : null);
+    const wsName = wsId ? (workspaces.find((w) => w.id === wsId)?.name || label) : label;
+    const isEditingThis = !!wsId && editingWorkspaceId === wsId;
 
     return (
       <div
         key={tab.id}
-        className={`tab-item ${isActive ? 'tab-item--active' : ''}`}
-        onClick={() => setActiveTab(tab.id)}
+        data-strip-item-id={itemId}
+        className={`tab-item ${isActive ? 'tab-item--active' : ''} ${slidingClass}`}
+        style={slidingStyle}
+        draggable={false}
+        onDragStart={(e) => e.preventDefault()}
+        onMouseDown={(e) => {
+          if (!isEditingThis) {
+            handleStripItemMouseDown(e, stripItem);
+          }
+        }}
+        onDoubleClick={(e) => {
+          if (wsId && !isEditingThis) {
+            e.stopPropagation();
+            startRenaming(wsId, wsName);
+          }
+        }}
         onAuxClick={(e) => {
           if (e.button === 1) {
             e.preventDefault();
@@ -215,44 +580,122 @@ export const TabBar: React.FC = () => {
           }
         }}
         title={tab.type === 'get-started' ? 'Home' : tab.title}
-        draggable
-        onDragStart={(e) => {
-          dragTabId.current = tab.id;
-          e.dataTransfer.effectAllowed = 'move';
-        }}
-        onDragOver={(e) => {
-          e.preventDefault();
-          e.dataTransfer.dropEffect = 'move';
-          dragOverTabId.current = tab.id;
-        }}
-        onDrop={(e) => {
-          e.preventDefault();
-          if (dragWsId.current) {
-            moveWorkspaceTabs(dragWsId.current, tab.id);
-            dragWsId.current = null;
-            dragTabId.current = null;
-            dragOverTabId.current = null;
-            return;
-          }
-          if (!dragTabId.current || dragTabId.current === tab.id) return;
-          const fromIndex = tabs.findIndex((t) => t.id === dragTabId.current);
-          const toIndex = tabFlatIndex;
-          if (fromIndex !== -1 && toIndex !== -1) reorderTabs(fromIndex, toIndex);
-          dragTabId.current = null;
-          dragOverTabId.current = null;
-        }}
-        onDragEnd={() => {
-          dragTabId.current = null;
-          dragWsId.current = null;
-          dragOverTabId.current = null;
-        }}
       >
         {iconName && <span className="material-symbols-outlined tab-icon">{iconName}</span>}
-        <span className="tab-label">{label}</span>
+        {isEditingThis ? (
+          <input
+            ref={renameInputRef}
+            type="text"
+            className="tab-inline-rename-input"
+            value={editWorkspaceName}
+            onChange={(e) => setEditWorkspaceName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                commitRename();
+              } else if (e.key === 'Escape') {
+                e.preventDefault();
+                cancelRename();
+              }
+            }}
+            onBlur={commitRename}
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
+            onDoubleClick={(e) => e.stopPropagation()}
+          />
+        ) : (
+          <span
+            className="tab-label"
+            onDoubleClick={(e) => {
+              if (wsId) {
+                e.stopPropagation();
+                startRenaming(wsId, wsName);
+              }
+            }}
+            title={wsId ? 'Double-click to rename workspace' : undefined}
+          >
+            {label}
+          </span>
+        )}
         <button
           className="tab-close-btn"
           type="button"
           title="Close Tab (Cmd+W)"
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation();
+            closeTab(tab.id);
+          }}
+        >
+          <span className="material-symbols-outlined">close</span>
+        </button>
+      </div>
+    );
+  };
+
+  // ─── Render Child Tab Inside Expanded Group ───────────────────────────────
+  const renderChildTab = (
+    tab: AppTab,
+    childIndex: number,
+    childTabs: AppTab[],
+    wsId: string,
+    stripItem: TabStripItem
+  ) => {
+    const isActive = tab.id === activeTabId;
+    const iconName = getTabIcon(tab);
+
+    let childStyle: React.CSSProperties | undefined;
+    let childClass = '';
+
+    if (childSlide && childSlide.isSliding && childSlide.wsId === wsId) {
+      if (childSlide.tabId === tab.id) {
+        childClass = 'tab-item--sliding';
+        childStyle = {
+          transform: `translateX(${childSlide.deltaX}px)`,
+          zIndex: 100,
+          position: 'relative',
+        };
+      } else if (childSlide.originIndex < childSlide.hoverIndex) {
+        if (childIndex > childSlide.originIndex && childIndex <= childSlide.hoverIndex) {
+          childClass = 'tab-item--shifting';
+          childStyle = {
+            transform: `translateX(-${childSlide.itemWidth + 4}px)`,
+          };
+        }
+      } else if (childSlide.originIndex > childSlide.hoverIndex) {
+        if (childIndex >= childSlide.hoverIndex && childIndex < childSlide.originIndex) {
+          childClass = 'tab-item--shifting';
+          childStyle = {
+            transform: `translateX(${childSlide.itemWidth + 4}px)`,
+          };
+        }
+      }
+    }
+
+    return (
+      <div
+        key={tab.id}
+        data-group-child-id={tab.id}
+        className={`tab-item ${isActive ? 'tab-item--active' : ''} ${childClass}`}
+        style={childStyle}
+        draggable={false}
+        onDragStart={(e) => e.preventDefault()}
+        onMouseDown={(e) => handleChildTabMouseDown(e, tab, childTabs, wsId, stripItem)}
+        onAuxClick={(e) => {
+          if (e.button === 1) {
+            e.preventDefault();
+            closeTab(tab.id);
+          }
+        }}
+        title={tab.title}
+      >
+        {iconName && <span className="material-symbols-outlined tab-icon">{iconName}</span>}
+        <span className="tab-label">{tab.title}</span>
+        <button
+          className="tab-close-btn"
+          type="button"
+          title="Close Tab (Cmd+W)"
+          onMouseDown={(e) => e.stopPropagation()}
           onClick={(e) => {
             e.stopPropagation();
             closeTab(tab.id);
@@ -268,72 +711,75 @@ export const TabBar: React.FC = () => {
     <>
       <div className="tabbar-root no-drag">
         <div className="tabstrip" ref={scrollRef}>
-          {stripItems.map((item) => {
+          {stripItems.map((item, itemIndex) => {
             if (item.kind === 'standalone') {
-              return renderSingleTab(item.tab, false);
+              return renderStandaloneTab(item.tab, itemIndex, item);
             }
 
             const isCollapsed = !!collapsedGroups[item.workspaceId];
             const hasActiveTab = item.tabs.some((t) => t.id === activeTabId);
             const wsTab = item.tabs.find((t) => t.type === 'workspace');
             const isWorkspaceActive = wsTab?.id === activeTabId;
-            const childTabCount = item.tabs.filter((t) => t.type !== 'workspace').length;
+            const childTabs = item.tabs.filter((t) => t.type !== 'workspace');
 
-            // If only one tab in group and it's the workspace tab, render it as a plain tab (no collapse)
-            if (item.tabs.length === 1 && item.tabs[0].type === 'workspace') {
-              return renderSingleTab(item.tabs[0], false);
+            // If only one tab in group, render as a clean standalone tab
+            if (item.tabs.length === 1) {
+              return renderStandaloneTab(item.tabs[0], itemIndex, item);
+            }
+
+            let groupSlidingStyle: React.CSSProperties = {
+              '--group-bg': item.color.bg,
+              '--group-border': item.color.border,
+              '--group-text': item.color.text,
+              cursor: isCollapsed ? 'grab' : undefined,
+            } as React.CSSProperties;
+
+            let groupSlidingClass = '';
+            if (stripSlide && stripSlide.isSliding) {
+              if (stripSlide.id === item.workspaceId) {
+                groupSlidingClass = 'tab-group--sliding';
+                groupSlidingStyle = {
+                  ...groupSlidingStyle,
+                  transform: `translateX(${stripSlide.deltaX}px)`,
+                  zIndex: 100,
+                  position: 'relative',
+                };
+              } else if (stripSlide.originIndex < stripSlide.hoverIndex) {
+                if (itemIndex > stripSlide.originIndex && itemIndex <= stripSlide.hoverIndex) {
+                  groupSlidingClass = 'tab-group--shifting';
+                  groupSlidingStyle = {
+                    ...groupSlidingStyle,
+                    transform: `translateX(-${stripSlide.itemWidth + 6}px)`,
+                  };
+                }
+              } else if (stripSlide.originIndex > stripSlide.hoverIndex) {
+                if (itemIndex >= stripSlide.hoverIndex && itemIndex < stripSlide.originIndex) {
+                  groupSlidingClass = 'tab-group--shifting';
+                  groupSlidingStyle = {
+                    ...groupSlidingStyle,
+                    transform: `translateX(${stripSlide.itemWidth + 6}px)`,
+                  };
+                }
+              }
             }
 
             return (
               <div
                 key={`group-${item.workspaceId}`}
+                data-strip-item-id={item.workspaceId}
                 className={`tab-group ${isCollapsed ? 'tab-group--collapsed' : ''} ${
                   hasActiveTab ? 'tab-group--has-active' : ''
-                }`}
-                style={
-                  {
-                    '--group-bg': item.color.bg,
-                    '--group-border': item.color.border,
-                    '--group-text': item.color.text,
-                    cursor: isCollapsed ? 'grab' : undefined,
-                  } as React.CSSProperties
-                }
-                draggable={isCollapsed}
-                onDragStart={(e) => {
-                  if (isCollapsed) {
-                    dragWsId.current = item.workspaceId;
-                    e.dataTransfer.effectAllowed = 'move';
-                  }
-                }}
-                onDragOver={(e) => {
-                  if (dragWsId.current || dragTabId.current) {
-                    e.preventDefault();
-                    e.dataTransfer.dropEffect = 'move';
-                  }
-                }}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  if (dragWsId.current && dragWsId.current !== item.workspaceId) {
-                    moveWorkspaceTabs(dragWsId.current, item.tabs[0].id);
-                  } else if (dragTabId.current) {
-                    const fromIndex = tabs.findIndex((t) => t.id === dragTabId.current);
-                    const toIndex = tabs.findIndex((t) => t.id === item.tabs[0].id);
-                    if (fromIndex !== -1 && toIndex !== -1) reorderTabs(fromIndex, toIndex);
-                  }
-                  dragWsId.current = null;
-                  dragTabId.current = null;
-                  dragOverTabId.current = null;
-                }}
-                onDragEnd={() => {
-                  dragWsId.current = null;
-                  dragTabId.current = null;
-                  dragOverTabId.current = null;
-                }}
+                } ${groupSlidingClass}`}
+                style={groupSlidingStyle}
+                draggable={false}
+                onDragStart={(e) => e.preventDefault()}
+                onMouseDown={isCollapsed && editingWorkspaceId !== item.workspaceId ? (e) => handleStripItemMouseDown(e, item) : undefined}
               >
-                {/* Collapse/expand arrow — only toggles collapse */}
+                {/* Collapse/expand arrow */}
                 <button
                   type="button"
                   className="tab-group-chevron-btn"
+                  onMouseDown={(e) => e.stopPropagation()}
                   onClick={(e) => {
                     e.stopPropagation();
                     toggleGroupCollapse(item.workspaceId);
@@ -345,12 +791,26 @@ export const TabBar: React.FC = () => {
                   </span>
                 </button>
 
-                {/* Workspace name — opens the workspace tab, styled as a tab when active */}
+                {/* Workspace tab button — styled as tab when active */}
                 <button
                   type="button"
                   className={`tab-group-name-btn${isWorkspaceActive ? ' tab-group-name-btn--active' : ''}`}
-                  onClick={() => {
-                    if (wsTab) setActiveTab(wsTab.id);
+                  onMouseDown={(e) => {
+                    if (editingWorkspaceId === item.workspaceId) {
+                      e.stopPropagation();
+                      return;
+                    }
+                    // Allow dragging entire group by its header pill even when expanded
+                    handleStripItemMouseDown(e, item);
+                  }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (editingWorkspaceId === item.workspaceId) return;
+                    openWorkspaceDirectory(item.workspaceId, item.workspaceName);
+                  }}
+                  onDoubleClick={(e) => {
+                    e.stopPropagation();
+                    startRenaming(item.workspaceId, item.workspaceName);
                   }}
                   onContextMenu={(e) => {
                     e.preventDefault();
@@ -363,21 +823,52 @@ export const TabBar: React.FC = () => {
                       y: e.clientY,
                     });
                   }}
-                  title={`Open ${item.workspaceName}`}
+                  title={editingWorkspaceId === item.workspaceId ? undefined : `Open ${item.workspaceName} (Double-click to rename)`}
                 >
                   <span className="material-symbols-outlined tab-icon" style={{ fontSize: '15px' }}>folder</span>
-                  <span className="tab-group-title">{item.workspaceName}</span>
-                  {isCollapsed && childTabCount > 0 && (
-                    <span className="tab-group-count">{childTabCount}</span>
+                  {editingWorkspaceId === item.workspaceId ? (
+                    <input
+                      ref={renameInputRef}
+                      type="text"
+                      className="tab-inline-rename-input"
+                      value={editWorkspaceName}
+                      onChange={(e) => setEditWorkspaceName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          commitRename();
+                        } else if (e.key === 'Escape') {
+                          e.preventDefault();
+                          cancelRename();
+                        }
+                      }}
+                      onBlur={commitRename}
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onClick={(e) => e.stopPropagation()}
+                      onDoubleClick={(e) => e.stopPropagation()}
+                    />
+                  ) : (
+                    <span
+                      className="tab-group-title"
+                      onDoubleClick={(e) => {
+                        e.stopPropagation();
+                        startRenaming(item.workspaceId, item.workspaceName);
+                      }}
+                    >
+                      {item.workspaceName}
+                    </span>
+                  )}
+                  {isCollapsed && childTabs.length > 0 && (
+                    <span className="tab-group-count">{childTabs.length}</span>
                   )}
                 </button>
 
+                {/* Expanded child tabs */}
                 {!isCollapsed && (
                   <div className="tab-group-tabs">
-                    {/* Skip the workspace tab itself — it's already represented by the group pill label */}
-                    {item.tabs
-                      .filter((t) => t.type !== 'workspace')
-                      .map((t) => renderSingleTab(t, true))}
+                    {childTabs.map((childTab, childIndex) =>
+                      renderChildTab(childTab, childIndex, childTabs, item.workspaceId, item)
+                    )}
                   </div>
                 )}
               </div>
@@ -385,7 +876,7 @@ export const TabBar: React.FC = () => {
           })}
         </div>
 
-        {/* ─── Add Button with Dropdown (outside the overflow scroll container) ─── */}
+        {/* ─── Add Button with Dropdown ─────────────────────────────────── */}
         <div className="tab-add-wrapper" ref={dropdownRef}>
           <button
             className={`tab-add-btn ${isDropdownOpen ? 'active' : ''}`}
@@ -405,7 +896,6 @@ export const TabBar: React.FC = () => {
               onClick={(e) => e.stopPropagation()}
               onMouseDown={(e) => e.stopPropagation()}
             >
-              {/* Search box integrated at the top */}
               <div className="tab-menu-dropdown__search-wrap">
                 <span className="material-symbols-outlined tab-menu-dropdown__search-icon">search</span>
                 <input
@@ -443,7 +933,6 @@ export const TabBar: React.FC = () => {
                 )}
               </div>
 
-              {/* Scrollable list showing top 10 items with scroll to see further */}
               <div className="tab-menu-dropdown__list custom-scroll">
                 {workspaces.length === 0 ? (
                   <div className="tab-menu-dropdown__empty">No workspaces created yet</div>
