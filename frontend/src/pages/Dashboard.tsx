@@ -53,6 +53,29 @@ const Dashboard = () => {
   const [datasetToImport, setDatasetToImport] = useState<ParsedDataset | null>(null);
   const [importingStudyId, setImportingStudyId] = useState<string | null>(null);
 
+  // Inline workspace title renaming
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [editWorkspaceTitle, setEditWorkspaceTitle] = useState('');
+  const titleInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (isEditingTitle && titleInputRef.current) {
+      titleInputRef.current.focus();
+      titleInputRef.current.select();
+    }
+  }, [isEditingTitle]);
+
+  useEffect(() => {
+    setIsEditingTitle(false);
+  }, [activeWorkspaceId]);
+
+  const commitTitleRename = () => {
+    if (activeWorkspace && editWorkspaceTitle.trim() && editWorkspaceTitle.trim() !== activeWorkspace.name) {
+      renameWorkspace(activeWorkspace.id, editWorkspaceTitle.trim());
+    }
+    setIsEditingTitle(false);
+  };
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -245,9 +268,39 @@ const Dashboard = () => {
             
             <div className="ws-header animate-fade-in">
               <div className="ws-header__left">
-                <h1 style={{ fontSize: '24px', fontWeight: 700, color: 'var(--color-accent, #6B4EE6)', letterSpacing: '-0.02em', margin: 0 }}>
-                  {activeWorkspace?.name || 'Workspace'}
-                </h1>
+                {isEditingTitle ? (
+                  <input
+                    ref={titleInputRef}
+                    type="text"
+                    className="ws-title-rename-input"
+                    value={editWorkspaceTitle}
+                    size={Math.max(editWorkspaceTitle.length, 1)}
+                    onChange={(e) => setEditWorkspaceTitle(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        commitTitleRename();
+                      } else if (e.key === 'Escape') {
+                        e.preventDefault();
+                        setIsEditingTitle(false);
+                      }
+                    }}
+                    onBlur={commitTitleRename}
+                  />
+                ) : (
+                  <h1
+                    className="ws-title-editable"
+                    onDoubleClick={() => {
+                      if (activeWorkspace) {
+                        setEditWorkspaceTitle(activeWorkspace.name);
+                        setIsEditingTitle(true);
+                      }
+                    }}
+                    title="Double-click to rename workspace"
+                  >
+                    {activeWorkspace?.name || 'Workspace'}
+                  </h1>
+                )}
               </div>
               <div className="ws-header__actions">
                 <button className="btn-ws-primary" type="button" onClick={handleCreateStudy}>

@@ -18,12 +18,15 @@ function App() {
 
   // Apply theme & font preference to document
   useEffect(() => {
-    if (settings.theme === 'dark') {
-      document.documentElement.dataset.theme = 'dark';
-    } else {
-      document.documentElement.dataset.theme = 'light';
+    let resolvedTheme: 'light' | 'dark' = theme;
+    if (settings.theme === 'system') {
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      resolvedTheme = prefersDark ? 'dark' : 'light';
+    } else if (settings.theme === 'dark' || settings.theme === 'light') {
+      resolvedTheme = settings.theme;
     }
-  }, [settings.theme]);
+    document.documentElement.dataset.theme = resolvedTheme;
+  }, [theme, settings.theme]);
 
   useEffect(() => {
     const fontMap: Record<string, string> = {
