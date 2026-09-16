@@ -53,6 +53,29 @@ const Dashboard = () => {
   const [datasetToImport, setDatasetToImport] = useState<ParsedDataset | null>(null);
   const [importingStudyId, setImportingStudyId] = useState<string | null>(null);
 
+  // Inline workspace title renaming
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [editWorkspaceTitle, setEditWorkspaceTitle] = useState('');
+  const titleInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (isEditingTitle && titleInputRef.current) {
+      titleInputRef.current.focus();
+      titleInputRef.current.select();
+    }
+  }, [isEditingTitle]);
+
+  useEffect(() => {
+    setIsEditingTitle(false);
+  }, [activeWorkspaceId]);
+
+  const commitTitleRename = () => {
+    if (activeWorkspace && editWorkspaceTitle.trim() && editWorkspaceTitle.trim() !== activeWorkspace.name) {
+      renameWorkspace(activeWorkspace.id, editWorkspaceTitle.trim());
+    }
+    setIsEditingTitle(false);
+  };
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -245,9 +268,39 @@ const Dashboard = () => {
             
             <div className="ws-header animate-fade-in">
               <div className="ws-header__left">
-                <h1 style={{ fontSize: '24px', fontWeight: 700, color: 'var(--color-accent, #6B4EE6)', letterSpacing: '-0.02em', margin: 0 }}>
-                  {activeWorkspace?.name || 'Workspace'}
-                </h1>
+                {isEditingTitle ? (
+                  <input
+                    ref={titleInputRef}
+                    type="text"
+                    className="ws-title-rename-input"
+                    value={editWorkspaceTitle}
+                    size={Math.max(editWorkspaceTitle.length, 1)}
+                    onChange={(e) => setEditWorkspaceTitle(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        commitTitleRename();
+                      } else if (e.key === 'Escape') {
+                        e.preventDefault();
+                        setIsEditingTitle(false);
+                      }
+                    }}
+                    onBlur={commitTitleRename}
+                  />
+                ) : (
+                  <h1
+                    className="ws-title-editable"
+                    onDoubleClick={() => {
+                      if (activeWorkspace) {
+                        setEditWorkspaceTitle(activeWorkspace.name);
+                        setIsEditingTitle(true);
+                      }
+                    }}
+                    title="Double-click to rename workspace"
+                  >
+                    {activeWorkspace?.name || 'Workspace'}
+                  </h1>
+                )}
               </div>
               <div className="ws-header__actions">
                 <button className="btn-ws-primary" type="button" onClick={handleCreateStudy}>
@@ -258,207 +311,7 @@ const Dashboard = () => {
               </div>
             </div>
 
-{showTrash ? (
-  <div className="studies-list">
-    {trash.length ? trash.map(item => (
-      <div className="study-entry archive-entry" key={item.id}>
-        <div className="study-row trash-row">
-          <div className="study-row__left">
-            <span className="material-symbols-outlined study-folder">
-              {item.kind === 'dataset'
-                ? 'dataset'
-                : item.kind === 'model'
-                  ? 'account_tree'
-                  : 'folder'}
-            </span>
-            <span className="study-row__name">{item.name}</span>
-            {trashPath(item) && (
-              <span className="trash-path">{trashPath(item)}</span>
-            )}
-            <span className="study-row__count">{item.kind}</span>
-          </div>
-
-          <div className="study-row__meta trash-row__meta">
-            <span className="study-row__time">
-              {trashDate(item.deletedAt)}
-            </span>
-
-            <button
-              className="archive-restore-btn trash-action trash-action--restore"
-              data-tooltip={`Deleted on ${item.deletedAt}`}
-              type="button"
-              onClick={() => restoreTrashItem(item.id)}
-            >
-              Restore
-            </button>
-
-            <button
-              className="archive-restore-btn trash-action trash-action--danger"
-              type="button"
-              onClick={() => {
-                if (window.confirm(`Permanently delete ${item.name}? This cannot be undone.`)) {
-                  permanentlyDeleteTrashItem(item.id);
-                }
-              }}
-            >
-              Delete forever
-            </button>
-          </div>
-        </div>
-      </div>
-    )) : (
-      <div
-        className="empty-state"
-        style={{padding: '32px 16px', textAlign: 'center'}}
-      >
-        Trash is empty.
-      </div>
-    )}
-  </div>
-) : showArchive ? (
-  <div className="studies-list">
-    {archivedWorkspaces.length ? archivedWorkspaces.map(workspace => {
-      const isExpanded = expandedArchivedWorkspaces.has(workspace.id);
-      const archivedStudies = studies.filter(
-        study => study.workspaceId === workspace.id
-      );
-
-      return (
-        <div className="study-entry archive-entry" key={workspace.id}>
-          <div
-            className="study-row"
-            onClick={() =>
-              setExpandedArchivedWorkspaces(previous => {
-                const next = new Set(previous);
-
-                if (next.has(workspace.id)) {
-                  next.delete(workspace.id);
-                } else {
-                  next.add(workspace.id);
-                }
-
-                return next;
-              })
-            }
-          >
-            <div className="study-row__left">
-              <span className="material-symbols-outlined study-folder">
-                inventory_2
-              </span>
-              <span className="study-row__name">{workspace.name}</span>
-              <span className="study-row__count">Archived</span>
-            </div>
-
-            <div className="study-row__meta">
-              <button
-                className="archive-restore-btn"
-                type="button"
-                onClick={event => {
-                  event.stopPropagation();
-                  restoreWorkspace(workspace.id);
-                }}
-              >
-                Restore
-              </button>
-
-              <span
-                className="study-row__chevron"
-                style={{
-                  transform: isExpanded
-                    ? 'rotate(90deg)'
-                    : 'rotate(0deg)'
-                }}
-              >
-                <span className="material-symbols-outlined study-chevron"></span>
-              </span>
-            </div>
-          </div>
-
-          {isExpanded && (
-            <div className="study-children archive-children">
-              {archivedStudies.length ? (
-                archivedStudies.map(study => (
-                  <div key={study.id}>
-                    <div className="file-row archive-readonly">
-                      <div className="file-row__left">
-                        <span className="material-symbols-outlined">
-                          folder
-                        </span>
-                        <span>{study.name}</span>
-                        <span className="file-badge file-badge--default">
-                          Study
-                        </span>
-                      </div>
-
-                      <div className="file-row__meta">
-                        <span className="file-row__time">
-                          {study.lastModified}
-                        </span>
-                      </div>
-                    </div>
-
-                    {datasetsByStudy[study.id] && (
-                      <div className="file-row archive-readonly archive-file">
-                        <div className="file-row__left">
-                          <span className="material-symbols-outlined">
-                            dataset
-                          </span>
-                          <span>
-                            {datasetsByStudy[study.id].filename}
-                          </span>
-                          <span className="file-badge file-badge--default">
-                            {datasetsByStudy[study.id].rows.length} rows
-                          </span>
-                        </div>
-                      </div>
-                    )}
-
-                    {models
-                      .filter(model => model.studyId === study.id)
-                      .map(model => (
-                        <div
-                          className="file-row archive-readonly archive-file"
-                          key={model.id}
-                        >
-                          <div className="file-row__left">
-                            <span className="material-symbols-outlined">
-                              account_tree
-                            </span>
-                            <span>{model.name}</span>
-                            <span className="file-badge file-badge--default">
-                              {model.type}
-                            </span>
-                          </div>
-
-                          <div className="file-row__meta">
-                            <span className="file-row__time">
-                              {model.lastModified}
-                            </span>
-                          </div>
-                        </div>
-                      ))}
-                  </div>
-                ))
-              ) : (
-                <div className="archive-empty">
-                  No studies in this workspace.
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      );
-    }) : (
-      <div
-        className="empty-state"
-        style={{padding: '32px 16px', textAlign: 'center'}}
-      >
-        No archived workspaces.
-      </div>
-    )}
-  </div>
-) : (
-  <div style={{flex: '1', display: 'flex', flexDirection: 'column'}}>
+            <div style={{flex: '1', display: 'flex', flexDirection: 'column'}}>
               <div className="studies-header">
                 <div className="studies-header__left" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                   {isStudySearchOpen ? <div className="inline-search-wrap"><input autoFocus className="studies-inline-search" value={studyQuery} onChange={event => setStudyQuery(event.target.value)} onBlur={() => { if (!studyQuery) setIsStudySearchOpen(false); }} placeholder="Filter studies…" />{studyQuery && <button className="inline-search-clear" type="button" aria-label="Clear study search" onMouseDown={event => event.preventDefault()} onClick={() => setStudyQuery('')}>×</button>}</div> : <span style={{ color: 'var(--color-text-secondary)' }}>Studies</span>}
@@ -559,8 +412,13 @@ const Dashboard = () => {
 <div
   className="file-row file-row--muted"
   onClick={() => {
-    setImportingStudyId(study.id);
-    setDatasetToImport(studyDataset);
+    setActiveStudy(study.id);
+    openTab({
+      type: 'dataset',
+      title: studyDataset.filename,
+      studyId: study.id,
+      workspaceId: activeWorkspaceId,
+    });
   }}
   onContextMenu={e => {
     e.preventDefault();
@@ -570,6 +428,29 @@ const Dashboard = () => {
       e.clientX,
       e.clientY,
       [
+        {
+          id: 'open-tab',
+          label: 'Open in Tab',
+          icon: 'tab',
+          action: () => {
+            setActiveStudy(study.id);
+            openTab({
+              type: 'dataset',
+              title: studyDataset.filename,
+              studyId: study.id,
+              workspaceId: activeWorkspaceId,
+            });
+          }
+        },
+        {
+          id: 'quick-edit',
+          label: 'Edit Settings...',
+          icon: 'tune',
+          action: () => {
+            setImportingStudyId(study.id);
+            setDatasetToImport(studyDataset);
+          }
+        },
         {
           id: 'rename',
           label: 'Rename Dataset',
@@ -612,7 +493,7 @@ const Dashboard = () => {
               message:
                 'Are you sure? This dataset will be permanently deleted and cannot be recovered.',
               onConfirm: () => {
-                trashDataset(study.id);
+                deleteDataset(study.id);
                 touchStudy(study.id);
 
                 if (study.path) {
@@ -721,14 +602,6 @@ const Dashboard = () => {
                 <option value="CB-SEM">CB-SEM</option>
                 <option value="Regression">Regression</option>
               </select>
-            </div>
-            <div className="modal__field">
-              <label className="modal__label">Dataset</label>
-              {datasetsByStudy[modelModalStudyId] ? (
-                <div className="modal__input" style={{background: 'var(--color-bg-subtle)', color: 'var(--color-text-secondary)'}}>{datasetsByStudy[modelModalStudyId].filename}</div>
-              ) : (
-                <button className="modal__browse-btn" type="button" onClick={() => { setImportingStudyId(modelModalStudyId); fileInputRef.current?.click(); }}>Add dataset</button>
-              )}
             </div>
           </div>
           <div className="modal__footer">

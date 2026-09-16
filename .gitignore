@@ -31,3 +31,11 @@ pnpm-debug.log*
 !.vscode/extensions.json
 .idea
 *.sw?
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+backend/venv/
+backend/~/

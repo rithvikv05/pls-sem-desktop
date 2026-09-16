@@ -9,6 +9,7 @@ import GetStarted from './pages/GetStarted';
 import Dashboard from './pages/Dashboard';
 import ModelEditor from './pages/ModelEditor';
 import ArchiveView from './pages/ArchiveView';
+import DatasetView from './pages/DatasetView';
 
 function App() {
   const { tabs, activeTabId, settings, theme } = useStore();
@@ -17,12 +18,15 @@ function App() {
 
   // Apply theme & font preference to document
   useEffect(() => {
-    if (settings.theme === 'dark') {
-      document.documentElement.dataset.theme = 'dark';
-    } else {
-      document.documentElement.dataset.theme = 'light';
+    let resolvedTheme: 'light' | 'dark' = theme;
+    if (settings.theme === 'system') {
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      resolvedTheme = prefersDark ? 'dark' : 'light';
+    } else if (settings.theme === 'dark' || settings.theme === 'light') {
+      resolvedTheme = settings.theme;
     }
-  }, [settings.theme]);
+    document.documentElement.dataset.theme = resolvedTheme;
+  }, [theme, settings.theme]);
 
   useEffect(() => {
     const fontMap: Record<string, string> = {
@@ -45,6 +49,9 @@ function App() {
     }
     if (activeTab.type === 'model') {
       return <ModelEditor key={activeTab.id} />;
+    }
+    if (activeTab.type === 'dataset') {
+      return <DatasetView key={activeTab.id} />;
     }
     if (activeTab.type === 'archive') {
       return <ArchiveView key={activeTab.id} />;
