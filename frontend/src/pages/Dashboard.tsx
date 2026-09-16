@@ -216,7 +216,16 @@ const Dashboard = () => {
                               title: 'Delete Workspace',
                               itemName: ws.name,
                               message: 'Are you sure? This workspace and all its contents will be permanently deleted and cannot be recovered.',
-                              onConfirm: () => deleteWorkspace(ws.id),
+                              onConfirm: async () => {
+                                if (ws.path) {
+                                  try {
+                                    await api.deleteWorkspace(ws.path);
+                                  } catch (e) {
+                                    console.warn('Failed to delete workspace on disk:', e);
+                                  }
+                                }
+                                deleteWorkspace(ws.id);
+                              },
                             });
                           } 
                         }
