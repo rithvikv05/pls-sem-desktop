@@ -140,12 +140,14 @@ export function initModelCanvas() {
   let panTransformStart = { x: 0, y: 0 };
 
   svg.addEventListener('mousedown', (e) => {
+    // Prevent browser native text selection dragging on canvas
+    e.preventDefault();
+
     if (e.button === 1 || (e.button === 0 && e.shiftKey)) { // Middle click or Shift+Left
       isPanning = true;
       panStart = { x: e.clientX, y: e.clientY };
       panTransformStart = { x: transform.x, y: transform.y };
       svg.style.cursor = 'grabbing';
-      e.preventDefault();
     } else if (mode === 'text' && (e.target === svg || e.target === bgRect || e.target.tagName === 'svg' || e.target.tagName === 'rect')) {
       const pt = svg.createSVGPoint();
       pt.x = e.clientX;
@@ -194,16 +196,31 @@ export function initModelCanvas() {
     if (nodes.length === 0) return;
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     nodes.forEach(n => {
-      minX = Math.min(minX, n.x - 50);
-      minY = Math.min(minY, n.y - 50);
-      maxX = Math.max(maxX, n.x + 50);
-      maxY = Math.max(maxY, n.y + 50);
+      const halfW = (n.width || (n.isLatent !== false ? 64 : 64)) / 2 + 24;
+      const halfH = (n.height || (n.isLatent !== false ? 64 : 24)) / 2 + 24;
+      minX = Math.min(minX, n.x - halfW);
+      minY = Math.min(minY, n.y - halfH);
+      maxX = Math.max(maxX, n.x + halfW);
+      maxY = Math.max(maxY, n.y + halfH);
     });
     const rect = svg.getBoundingClientRect();
+    const modelWidth = Math.max(maxX - minX, 100);
+    const modelHeight = Math.max(maxY - minY, 100);
+    const padding = 60;
+    const availW = Math.max(rect.width - padding * 2, 100);
+    const availH = Math.max(rect.height - padding * 2, 100);
+    const scale = Math.min(availW / modelWidth, availH / modelHeight, 1.2);
+    const k = Math.max(Math.min(scale, 1.2), 0.2);
     const cx = (minX + maxX) / 2;
     const cy = (minY + maxY) / 2;
-    transform = { x: (rect.width / 2) - cx - 150, y: (rect.height / 2) - cy, k: 1 };
+    transform = {
+      x: (rect.width / 2) - (cx * k),
+      y: (rect.height / 2) - (cy * k),
+      k: k
+    };
     applyTransform();
+    const zoomLevelEl = document.getElementById('hud-zoom-level');
+    if (zoomLevelEl) zoomLevelEl.textContent = `${Math.round(transform.k * 100)}%`;
   });
 
   document.getElementById('hud-snap')?.addEventListener('click', function() {
@@ -307,6 +324,9 @@ export function initModelCanvas() {
       } else if (title.includes('Path Connector')) {
         setMode('connect');
         updateToolbarUI(this);
+      } else if (title.includes('Erase')) {
+        setMode('erase');
+        updateToolbarUI(this);
       } else if (title.includes('Latent variable')) {
         // Prompt for name and plop in center
         setMode('select');
@@ -396,6 +416,11 @@ export function initModelCanvas() {
     
     selectedIds.clear();
     render();
+
+    // Automatically center and fit the model within visible boundaries after auto-aligning
+    setTimeout(() => {
+      document.getElementById('hud-fit')?.click();
+    }, 50);
   });
 
   // Colors and Font Size (Using Global Event Delegation)
@@ -592,6 +617,8 @@ export function initModelCanvas() {
   function setMode(newMode) {
     mode = newMode;
     if (mode === 'connect') {
+      svg.style.cursor = 'crosshair';
+    } else if (mode === 'erase') {
       svg.style.cursor = 'crosshair';
     } else {
       svg.style.cursor = 'default';
@@ -833,6 +860,12 @@ export function initModelCanvas() {
       
       clickPath.addEventListener('click', (e) => {
         e.stopPropagation();
+        if (mode === 'erase') {
+          selectedIds.clear();
+          selectedIds.add(edge.id);
+          deleteSelected();
+          return;
+        }
         if (mode === 'select') {
           if (!e.shiftKey) clearSelection();
           selectedIds.add(edge.id);
@@ -851,7 +884,7 @@ export function initModelCanvas() {
             handle.setAttribute('cx', wp.x);
             handle.setAttribute('cy', wp.y);
             handle.setAttribute('r', 5);
-            handle.setAttribute('fill', '#a855f7');
+            handle.setAttribute('fill', 'var(--color-accent, #6B4EE6)');
             handle.style.cursor = 'move';
             
             handle.addEventListener('mousedown', (e) => {
@@ -889,7 +922,7 @@ export function initModelCanvas() {
       const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
       g.setAttribute('transform', `translate(${node.x}, ${node.y})`);
       g.setAttribute('class', 'construct-node');
-      g.style.cursor = mode === 'select' ? 'move' : (mode === 'connect' ? 'crosshair' : 'default');
+      g.style.cursor = mode === 'select' ? 'move' : (mode === 'connect' ? 'crosshair' : (mode === 'erase' ? 'pointer' : 'default'));
 
       const isSelected = selectedIds.has(node.id);
 
@@ -908,7 +941,7 @@ export function initModelCanvas() {
           selShape.setAttribute('height', h + gap*2);
           selShape.setAttribute('rx', '12');
           selShape.setAttribute('fill', 'none');
-          selShape.setAttribute('stroke', 'rgba(168,85,247,0.7)'); // dotted purple semi-transparent
+          selShape.setAttribute('stroke', 'var(--color-accent, #6B4EE6)');
           selShape.setAttribute('stroke-width', '1.5');
           selShape.setAttribute('stroke-dasharray', '6 6');
           g.appendChild(selShape);
@@ -919,7 +952,7 @@ export function initModelCanvas() {
           handle.setAttribute('y', h/2 + gap - 4);
           handle.setAttribute('width', '8');
           handle.setAttribute('height', '8');
-          handle.setAttribute('fill', '#a855f7');
+          handle.setAttribute('fill', 'var(--color-accent, #6B4EE6)');
           handle.style.cursor = 'se-resize';
           handle.addEventListener('mousedown', (e) => {
             e.stopPropagation();
@@ -939,6 +972,9 @@ export function initModelCanvas() {
         const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
         text.textContent = node.label;
         text.setAttribute('text-anchor', 'middle');
+        text.setAttribute('pointer-events', 'none');
+        text.style.userSelect = 'none';
+        text.style.webkitUserSelect = 'none';
         
         if (node.textInside) {
           text.setAttribute('y', 5); // visually centered
@@ -995,7 +1031,7 @@ export function initModelCanvas() {
           selShape.setAttribute('height', rectBox.height + gap*2);
           selShape.setAttribute('rx', '4');
           selShape.setAttribute('fill', 'none');
-          selShape.setAttribute('stroke', '#a855f7');
+          selShape.setAttribute('stroke', 'var(--color-accent, #6B4EE6)');
           selShape.setAttribute('stroke-width', '2');
           selShape.setAttribute('stroke-dasharray', '6 6');
           g.appendChild(selShape);
@@ -1006,7 +1042,7 @@ export function initModelCanvas() {
           handle.setAttribute('y', rectBox.height/2 + gap - 4);
           handle.setAttribute('width', '8');
           handle.setAttribute('height', '8');
-          handle.setAttribute('fill', '#a855f7');
+          handle.setAttribute('fill', 'var(--color-accent, #6B4EE6)');
           handle.style.cursor = 'se-resize';
           handle.addEventListener('mousedown', (e) => {
             e.stopPropagation();
@@ -1039,7 +1075,7 @@ export function initModelCanvas() {
           selShape.setAttribute('height', h + gap*2);
           selShape.setAttribute('rx', '4');
           selShape.setAttribute('fill', 'none');
-          selShape.setAttribute('stroke', '#a855f7');
+          selShape.setAttribute('stroke', 'var(--color-accent, #6B4EE6)');
           selShape.setAttribute('stroke-width', '2');
           selShape.setAttribute('stroke-dasharray', '6 6');
           g.appendChild(selShape);
@@ -1050,7 +1086,7 @@ export function initModelCanvas() {
           handle.setAttribute('y', h/2 + gap - 4);
           handle.setAttribute('width', '8');
           handle.setAttribute('height', '8');
-          handle.setAttribute('fill', '#a855f7');
+          handle.setAttribute('fill', 'var(--color-accent, #6B4EE6)');
           handle.style.cursor = 'se-resize';
           handle.addEventListener('mousedown', (e) => {
             e.stopPropagation();
@@ -1286,7 +1322,15 @@ export function initModelCanvas() {
 
   function handleNodeMouseDown(e, node) {
     e.stopPropagation();
+    e.preventDefault();
     
+    if (mode === 'erase') {
+      selectedIds.clear();
+      selectedIds.add(node.id);
+      deleteSelected();
+      return;
+    }
+
     if (mode === 'select') {
       if (!e.shiftKey && !selectedIds.has(node.id)) {
         clearSelection();
@@ -1914,6 +1958,19 @@ export function initModelCanvas() {
         deleteSelected();
       }
       return;
+    }
+
+    if (!e.metaKey && !e.ctrlKey) {
+      if (e.key.toLowerCase() === 'v') {
+        setMode('select');
+        updateToolbarUI(document.querySelector('.canvas-toolbar .tb-btn[title*="Select"]'));
+      } else if (e.key.toLowerCase() === 'p') {
+        setMode('connect');
+        updateToolbarUI(document.querySelector('.canvas-toolbar .tb-btn[title*="Path Connector"]'));
+      } else if (e.key.toLowerCase() === 'e') {
+        setMode('erase');
+        updateToolbarUI(document.querySelector('.canvas-toolbar .tb-btn[title*="Erase"]'));
+      }
     }
 
     // Classic Undo & Redo shortcuts

@@ -10,8 +10,13 @@ import Dashboard from './pages/Dashboard';
 import ModelEditor from './pages/ModelEditor';
 import ArchiveView from './pages/ArchiveView';
 import DatasetView from './pages/DatasetView';
+import DocsView from './pages/DocsView';
+import SamplesView from './pages/SamplesView';
+import FeedbackView from './pages/FeedbackView';
+import ChangelogView from './pages/ChangelogView';
 
 import { api } from './utils/api';
+import { applyAccentColor } from './utils/theme';
 
 function App() {
   const { tabs, activeTabId, settings, theme } = useStore();
@@ -64,17 +69,32 @@ function App() {
     };
   }, []);
 
-  // Apply theme & font preference to document
+  // Apply theme & accent preference to document
   useEffect(() => {
-    let resolvedTheme: 'light' | 'dark' = theme;
-    if (settings.theme === 'system') {
-      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      resolvedTheme = prefersDark ? 'dark' : 'light';
-    } else if (settings.theme === 'dark' || settings.theme === 'light') {
-      resolvedTheme = settings.theme;
-    }
-    document.documentElement.dataset.theme = resolvedTheme;
-  }, [theme, settings.theme]);
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+
+    const applyCurrentTheme = () => {
+      let resolvedTheme: 'light' | 'dark' = theme;
+      if (settings.theme === 'system') {
+        resolvedTheme = mediaQuery.matches ? 'dark' : 'light';
+      } else if (settings.theme === 'dark' || settings.theme === 'light') {
+        resolvedTheme = settings.theme;
+      }
+      document.documentElement.dataset.theme = resolvedTheme;
+      // Apply dark variant (grayscale / true-black / default) when in dark mode
+      if (resolvedTheme === 'dark') {
+        document.documentElement.dataset.darkVariant = settings.darkVariant || 'default';
+      } else {
+        delete document.documentElement.dataset.darkVariant;
+      }
+      applyAccentColor(settings.accentColor || '#6B4EE6', resolvedTheme === 'dark');
+    };
+
+    applyCurrentTheme();
+
+    mediaQuery.addEventListener('change', applyCurrentTheme);
+    return () => mediaQuery.removeEventListener('change', applyCurrentTheme);
+  }, [theme, settings.theme, settings.accentColor]);
 
   useEffect(() => {
     const fontMap: Record<string, string> = {
@@ -104,6 +124,18 @@ function App() {
     if (activeTab.type === 'archive') {
       return <ArchiveView key={activeTab.id} />;
     }
+    if (activeTab.type === 'docs') {
+      return <DocsView key={activeTab.id} />;
+    }
+    if (activeTab.type === 'samples') {
+      return <SamplesView key={activeTab.id} />;
+    }
+    if (activeTab.type === 'feedback') {
+      return <FeedbackView key={activeTab.id} />;
+    }
+    if (activeTab.type === 'changelog') {
+      return <ChangelogView key={activeTab.id} />;
+    }
     return <GetStarted />;
   };
 
@@ -124,7 +156,27 @@ function App() {
       }
     };
     window.addEventListener('keydown', handleGlobalKeyDown);
-    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+
+    // Prevent accidental text selection dragging across the desktop app window
+    const handleGlobalSelectStart = (e: Event) => {
+      const target = e.target as HTMLElement | null;
+      const isEditable = !!(target && (
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.isContentEditable ||
+        target.getAttribute('contenteditable') === 'true' ||
+        target.classList.contains('selectable-text')
+      ));
+      if (!isEditable) {
+        e.preventDefault();
+      }
+    };
+    window.addEventListener('selectstart', handleGlobalSelectStart);
+
+    return () => {
+      window.removeEventListener('keydown', handleGlobalKeyDown);
+      window.removeEventListener('selectstart', handleGlobalSelectStart);
+    };
   }, []);
 
   return (
