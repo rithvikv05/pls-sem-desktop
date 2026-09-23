@@ -166,7 +166,7 @@ const ModelEditor = () => {
     const sliderBg = viewSlider?.querySelector('.view-slider__bg');
     if (viewModel && viewResults) {
       if (view === 'model') {
-        (viewModel as HTMLElement).style.display = 'block';
+        (viewModel as HTMLElement).style.display = 'flex';
         (viewResults as HTMLElement).style.display = 'none';
         if (sliderBg && sliderBtns && sliderBtns.length >= 2) {
           (sliderBg as HTMLElement).style.transform = 'translateX(0)';
@@ -175,7 +175,7 @@ const ModelEditor = () => {
         }
       } else {
         (viewModel as HTMLElement).style.display = 'none';
-        (viewResults as HTMLElement).style.display = 'block';
+        (viewResults as HTMLElement).style.display = 'flex';
         if (sliderBg && sliderBtns && sliderBtns.length >= 2) {
           (sliderBg as HTMLElement).style.transform = 'translateX(100%)';
           sliderBtns[1]?.classList.add('active');
@@ -752,7 +752,7 @@ const ModelEditor = () => {
     </div>
   </div>
   {/* ═══ APP BODY ═══ */}
-  <div id="view-model" className="view-panel">
+  <div id="view-model" className="view-panel" style={{ display: currentView === 'model' ? 'flex' : 'none' }}>
     <div className="app-body">
       {/* ─── Variable Sidebar (Left) ─── */}
       <aside className="var-sidebar" id="var-sidebar">
@@ -1143,7 +1143,7 @@ const ModelEditor = () => {
       </main>
     </div>{/* /app-body */}
   </div>{/* /view-model */}
-  <div id="view-results" className="view-panel" style={{display: 'none'}}>
+  <div id="view-results" className="view-panel" style={{ display: currentView === 'results' ? 'flex' : 'none' }}>
     {/* ═══ APP BODY ═══ */}
     <div className="app-body">
       {/* ─── Results Hierarchy Tree (Left) ─── */}
@@ -1975,20 +1975,17 @@ const ModelEditor = () => {
                       })}
                     </tbody>
                   </table>
+                  <div className="sig-legend">
+                    <span style={{ color: 'var(--color-text-secondary)', fontWeight: 500 }}>Significance:</span>
+                    <div className="sig-legend__item"><span className="sig-legend__stars">***</span> p &lt; 0.001</div>
+                    <div className="sig-legend__item"><span className="sig-legend__stars">**</span> p &lt; 0.01</div>
+                    <div className="sig-legend__item"><span className="sig-legend__stars">*</span> p &lt; 0.05</div>
+                    <span style={{ flex: 1 }} />
+                    <span>Two-tailed test (5,000 bootstrap subsamples)</span>
+                  </div>
                 </div>
               )
             ) : null}
-
-            {plsResults && (
-              <div className="sig-legend">
-                <span style={{color: 'var(--color-text-secondary)', fontWeight: 500}}>Status:</span>
-                <div className="sig-legend__item"><span style={{color: '#10b981'}}>✓</span> Converged: {plsResults.converged ? 'Yes' : 'No'}</div>
-                <div className="sig-legend__item"><span style={{color: '#6366f1'}}>ℹ</span> Iterations: {plsResults.iterations}</div>
-                <div className="sig-legend__item"><span style={{color: '#0ea5e9'}}>N:</span> {plsResults.n_samples} cases</div>
-                <span style={{flex: 1}} />
-                <div style={{fontFamily: 'var(--font-sans)', fontSize: '12px', color: '#64748b'}}>PLS-SEM Engine · Path Weighting Scheme</div>
-              </div>
-            )}
           </div>
         </div>
       </main>

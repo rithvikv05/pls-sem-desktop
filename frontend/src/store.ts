@@ -218,9 +218,24 @@ export const useStore = create<AppState>()(
     (set) => ({
       // Global & Settings
       theme: 'light',
-      toggleTheme: () => set((state) => ({ theme: state.theme === 'light' ? 'dark' : 'light' })),
+      toggleTheme: () => set((state) => {
+        const nextTheme: 'light' | 'dark' = state.theme === 'light' ? 'dark' : 'light';
+        return {
+          theme: nextTheme,
+          settings: { ...state.settings, theme: nextTheme },
+        };
+      }),
       settings: INITIAL_SETTINGS,
-      updateSettings: (partial) => set((state) => ({ settings: { ...state.settings, ...partial } })),
+      updateSettings: (partial) => set((state) => {
+        let nextTheme = state.theme;
+        if (partial.theme) {
+          nextTheme = partial.theme === 'dark' ? 'dark' : 'light';
+        }
+        return {
+          settings: { ...state.settings, ...partial },
+          theme: nextTheme,
+        };
+      }),
       isSettingsOpen: false,
       setIsSettingsOpen: (open) => set({ isSettingsOpen: open }),
 
