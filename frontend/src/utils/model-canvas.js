@@ -100,6 +100,7 @@ export function initModelCanvas() {
 
   // Update transform
   function applyTransform() {
+    hideLatentHoverPopup();
     zoomLayer.setAttribute('transform', `translate(${transform.x}, ${transform.y}) scale(${transform.k})`);
     
     // Update HUD
@@ -359,6 +360,13 @@ export function initModelCanvas() {
 
   // Auto-Align Model
   document.querySelector('.tb-btn[title="Auto-Align Model"]')?.addEventListener('click', () => {
+    // Reset all arrow bends / waypoints
+    edges.forEach(e => {
+      e.waypoints = [];
+      delete e.waypoints;
+      e.curved = false;
+    });
+
     const depths = new Map();
     nodes.forEach(n => { if (n.isLatent !== false) depths.set(n.id, 0); });
     
@@ -387,8 +395,8 @@ export function initModelCanvas() {
       if (node) columns[depth].push(node);
     });
 
-    const colWidth = 300;
-    const rowHeight = 200;
+    const colWidth = 360;
+    const rowHeight = 220;
     
     const center = getSvgCenter();
     const startX = center.x - (columns.length - 1) * colWidth / 2;
@@ -416,6 +424,7 @@ export function initModelCanvas() {
     
     selectedIds.clear();
     render();
+    pushHistory();
 
     // Automatically center and fit the model within visible boundaries after auto-aligning
     setTimeout(() => {
@@ -584,7 +593,7 @@ export function initModelCanvas() {
       spacing = indWidth + gap;
     }
     
-    const offset = 100;
+    const offset = (direction === 'top' || direction === 'bottom') ? 140 : 155;
     
     const totalLength = (indicators.length - 1) * spacing;
     const start = -totalLength / 2;
@@ -698,7 +707,7 @@ export function initModelCanvas() {
           label: name,
           isLatent: false,
           parentId: targetNode.id,
-          x: targetNode.x + 140,
+          x: targetNode.x + 155,
           y: targetNode.y + (existingIndicators.length * 40)
         });
 
@@ -722,7 +731,7 @@ export function initModelCanvas() {
         label: name,
         isLatent: false,
         parentId: newLatent.id,
-        x: newLatent.x + 140,
+        x: newLatent.x + 155,
         y: newLatent.y
       });
       render();
@@ -791,6 +800,208 @@ export function initModelCanvas() {
     return el;
   }
 
+  // ── Calculation Results State & Helpers ──────────────────────────
+  let activeResults = (typeof window !== 'undefined' && window._canvasActiveResults) || null;
+
+  function setCanvasResults(results) {
+    activeResults = results;
+    if (typeof window !== 'undefined') {
+      window._canvasActiveResults = results;
+    }
+    render();
+  }
+
+  function findConstructKey(node) {
+    if (!activeResults || !node) return null;
+    const struct = activeResults.structural || {};
+    const rel = activeResults.reliability_and_validity || {};
+    const names = activeResults.construct_names || {};
+
+    if (struct.r_squared?.[node.id] !== undefined || rel.composite_reliability?.[node.id] !== undefined) {
+      return node.id;
+    }
+    if (node.label) {
+      if (struct.r_squared?.[node.label] !== undefined || rel.composite_reliability?.[node.label] !== undefined) {
+        return node.label;
+      }
+      const upper = node.label.toUpperCase();
+      if (struct.r_squared?.[upper] !== undefined || rel.composite_reliability?.[upper] !== undefined) {
+        return upper;
+      }
+    }
+    for (const [cid, cname] of Object.entries(names)) {
+      if (cid === node.id || (node.label && cname && cname.toUpperCase() === node.label.toUpperCase())) {
+        return cid;
+      }
+    }
+    return null;
+  }
+
+  function getConstructMetrics(node) {
+    if (!activeResults || !node) return null;
+    const key = findConstructKey(node);
+    if (!key) return null;
+
+    const struct = activeResults.structural || {};
+    const rel = activeResults.reliability_and_validity || {};
+    const names = activeResults.construct_names || {};
+
+    const r2 = struct.r_squared?.[key];
+    const r2Adj = struct.r_squared_adj?.[key];
+    const cr = rel.composite_reliability?.[key];
+    const ave = rel.ave?.[key];
+    const alpha = rel.cronbachs_alpha?.[key];
+
+    return {
+      key,
+      name: node.label || names[key] || key,
+      r2: (r2 !== undefined && r2 !== null && !isNaN(Number(r2))) ? Number(r2) : null,
+      r2Adj: (r2Adj !== undefined && r2Adj !== null && !isNaN(Number(r2Adj))) ? Number(r2Adj) : null,
+      cr: (cr !== undefined && cr !== null && !isNaN(Number(cr))) ? Number(cr) : null,
+      ave: (ave !== undefined && ave !== null && !isNaN(Number(ave))) ? Number(ave) : null,
+      alpha: (alpha !== undefined && alpha !== null && !isNaN(Number(alpha))) ? Number(alpha) : null,
+    };
+  }
+
+  function getPathCoefficient(sourceNode, targetNode) {
+    if (!activeResults?.structural?.path_coefficients || !sourceNode || !targetNode) return null;
+    const paths = activeResults.structural.path_coefficients;
+    const sKey = findConstructKey(sourceNode);
+    const tKey = findConstructKey(targetNode);
+
+    if (tKey && sKey && paths[tKey]?.[sKey] !== undefined) {
+      return Number(paths[tKey][sKey]);
+    }
+    const sCandidates = [sKey, sourceNode.id, sourceNode.label, sourceNode.label?.toUpperCase()].filter(Boolean);
+    const tCandidates = [tKey, targetNode.id, targetNode.label, targetNode.label?.toUpperCase()].filter(Boolean);
+
+    for (const t of tCandidates) {
+      if (paths[t]) {
+        for (const s of sCandidates) {
+          if (paths[t][s] !== undefined) {
+            return Number(paths[t][s]);
+          }
+        }
+      }
+    }
+    return null;
+  }
+
+  function getOuterLoading(parentNode, indicatorNode) {
+    if (!activeResults?.measurement?.outer_loadings || !parentNode || !indicatorNode) return null;
+    const loadings = activeResults.measurement.outer_loadings;
+    const indNames = activeResults.indicator_names || {};
+    const pKey = findConstructKey(parentNode);
+
+    const pCandidates = [pKey, parentNode.id, parentNode.label, parentNode.label?.toUpperCase()].filter(Boolean);
+    const iCandidates = [indicatorNode.id, indicatorNode.label, indicatorNode.label?.toUpperCase(), indicatorNode.label?.toLowerCase()].filter(Boolean);
+
+    for (const p of pCandidates) {
+      if (loadings[p]) {
+        for (const i of iCandidates) {
+          if (loadings[p][i] !== undefined) {
+            return Number(loadings[p][i]);
+          }
+        }
+        for (const [iid, iname] of Object.entries(indNames)) {
+          if ((iid === indicatorNode.id || iname === indicatorNode.label) && loadings[p][iid] !== undefined) {
+            return Number(loadings[p][iid]);
+          }
+        }
+      }
+    }
+    return null;
+  }
+
+  function showLatentHoverPopup(node, metrics) {
+    let popupEl = document.getElementById('canvas-latent-popup');
+    if (!popupEl) {
+      popupEl = document.createElement('div');
+      popupEl.id = 'canvas-latent-popup';
+      popupEl.className = 'canvas-latent-popup';
+      const container = svg.parentElement || document.body;
+      container.appendChild(popupEl);
+    }
+
+    const fmtVal = (val) => (val !== null && val !== undefined && !isNaN(val)) ? Number(val).toFixed(4) : '—';
+
+    let r2Rows = '';
+    if (metrics.r2 !== null) {
+      r2Rows = `
+        <div class="canvas-latent-popup__item">
+          <span class="canvas-latent-popup__label">R²</span>
+          <span class="canvas-latent-popup__val highlight">${fmtVal(metrics.r2)}</span>
+        </div>
+        <div class="canvas-latent-popup__item">
+          <span class="canvas-latent-popup__label">R² Adjusted</span>
+          <span class="canvas-latent-popup__val">${fmtVal(metrics.r2Adj)}</span>
+        </div>
+      `;
+    }
+
+    popupEl.innerHTML = `
+      <div class="canvas-latent-popup__header">
+        <span class="canvas-latent-popup__badge">LATENT</span>
+        <span class="canvas-latent-popup__title">${metrics.name || 'Construct'}</span>
+      </div>
+      <div class="canvas-latent-popup__grid">
+        ${r2Rows}
+        <div class="canvas-latent-popup__item">
+          <span class="canvas-latent-popup__label">Composite Reliability</span>
+          <span class="canvas-latent-popup__val">${fmtVal(metrics.cr)}</span>
+        </div>
+        <div class="canvas-latent-popup__item">
+          <span class="canvas-latent-popup__label">Avg Variance Extracted</span>
+          <span class="canvas-latent-popup__val">${fmtVal(metrics.ave)}</span>
+        </div>
+        <div class="canvas-latent-popup__item">
+          <span class="canvas-latent-popup__label">Cronbach's Alpha (α)</span>
+          <span class="canvas-latent-popup__val">${fmtVal(metrics.alpha)}</span>
+        </div>
+      </div>
+    `;
+
+    const CTM = zoomLayer.getScreenCTM();
+    if (CTM) {
+      const pt = svg.createSVGPoint();
+      pt.x = node.x;
+      const h = node.height || (NODE_R * 2);
+      pt.y = node.y - h / 2;
+      const screenPt = pt.matrixTransform(CTM);
+      const containerRect = (svg.parentElement || svg).getBoundingClientRect();
+
+      const posX = screenPt.x - containerRect.left;
+      const posY = screenPt.y - containerRect.top;
+
+      popupEl.style.left = `${posX}px`;
+      
+      const flipUnder = (posY - 150) < 0;
+      if (flipUnder) {
+        popupEl.style.top = `${posY + h + 12}px`;
+        popupEl.style.transform = 'translate(-50%, 0) scale(1)';
+      } else {
+        popupEl.style.top = `${posY - 8}px`;
+        popupEl.style.transform = 'translate(-50%, -100%) scale(1)';
+      }
+    }
+
+    popupEl.style.display = 'block';
+    requestAnimationFrame(() => {
+      popupEl.classList.add('visible');
+    });
+  }
+
+  function hideLatentHoverPopup() {
+    const popupEl = document.getElementById('canvas-latent-popup');
+    if (!popupEl) return;
+    popupEl.classList.remove('visible');
+    setTimeout(() => {
+      if (!popupEl.classList.contains('visible')) {
+        popupEl.style.display = 'none';
+      }
+    }, 160);
+  }
+
   function render() {
     nodesLayer.innerHTML = '';
     edgesLayer.innerHTML = '';
@@ -801,7 +1012,7 @@ export function initModelCanvas() {
       const target = nodes.find(n => n.id === edge.targetId);
       if (!source || !target) return;
       
-      const { x1, y1, x2, y2 } = getEdgeCoordinates(source, target);
+      const { x1, y1, x2, y2 } = getEdgeCoordinates(source, target, edge);
       
       const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
       
@@ -874,6 +1085,74 @@ export function initModelCanvas() {
       });
       clickPath.addEventListener('contextmenu', (e) => showContextMenu(e, edge.id));
       edgesLayer.appendChild(clickPath);
+
+      // Structural path coefficient badge (between latent variables)
+      const coef = getPathCoefficient(source, target);
+      if (coef !== null && coef !== undefined) {
+        let midX = (x1 + x2) / 2;
+        let midY = (y1 + y2) / 2;
+
+        if (edge.waypoints && edge.waypoints.length > 0) {
+          const numJoints = edge.waypoints.length;
+          if (numJoints % 2 === 1) {
+            // Odd number of joints (e.g. 1 joint): exact middle joint
+            const midIdx = Math.floor(numJoints / 2);
+            midX = edge.waypoints[midIdx].x;
+            midY = edge.waypoints[midIdx].y;
+          } else {
+            // Even number of joints: midpoint between the two middle joints
+            const idx1 = numJoints / 2 - 1;
+            const idx2 = numJoints / 2;
+            midX = (edge.waypoints[idx1].x + edge.waypoints[idx2].x) / 2;
+            midY = (edge.waypoints[idx1].y + edge.waypoints[idx2].y) / 2;
+          }
+        } else if (edge.curved) {
+          const mx = (x1 + x2) / 2;
+          const my = (y1 + y2) / 2;
+          const dx = x2 - x1;
+          const dy = y2 - y1;
+          const len = Math.sqrt(dx * dx + dy * dy) || 1;
+          const cx = mx + (-dy / len) * 40;
+          const cy = my + (dx / len) * 40;
+          midX = 0.25 * x1 + 0.5 * cx + 0.25 * x2;
+          midY = 0.25 * y1 + 0.5 * cy + 0.25 * y2;
+        } else {
+          midX = (x1 + x2) / 2;
+          midY = (y1 + y2) / 2;
+        }
+
+        const badgeG = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        badgeG.setAttribute('class', 'edge-result-badge');
+        badgeG.setAttribute('transform', `translate(${midX}, ${midY})`);
+        badgeG.setAttribute('pointer-events', 'none');
+
+        const textVal = coef.toFixed(3);
+        const pillW = Math.max(34, textVal.length * 7.5 + 10);
+        const pillH = 18;
+
+        const bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+        bg.setAttribute('x', -pillW / 2);
+        bg.setAttribute('y', -pillH / 2);
+        bg.setAttribute('width', pillW);
+        bg.setAttribute('height', pillH);
+        bg.setAttribute('rx', '4');
+        bg.setAttribute('fill', 'var(--color-bg-primary, #ffffff)');
+        bg.setAttribute('stroke', selectedIds.has(edge.id) ? 'var(--color-accent, #6B4EE6)' : 'var(--color-border-divider, #cbd5e1)');
+        bg.setAttribute('stroke-width', '1');
+        badgeG.appendChild(bg);
+
+        const txt = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        txt.setAttribute('text-anchor', 'middle');
+        txt.setAttribute('dominant-baseline', 'central');
+        txt.setAttribute('font-size', '10.5');
+        txt.setAttribute('font-family', 'var(--font-mono, monospace)');
+        txt.setAttribute('font-weight', '600');
+        txt.setAttribute('fill', 'var(--color-text-primary, #1e293b)');
+        txt.textContent = textVal;
+        badgeG.appendChild(txt);
+
+        edgesLayer.appendChild(badgeG);
+      }
       
       
       // Draw handles if selected
@@ -1001,6 +1280,52 @@ export function initModelCanvas() {
         if (node.underline) text.setAttribute('text-decoration', 'underline');
         text.setAttribute('font-family', node.fontFamily || 'var(--font-sans)');
         g.appendChild(text);
+
+        // Display R² inside circle for endogenous latent constructs
+        const metrics = getConstructMetrics(node);
+        if (metrics && metrics.r2 !== null && metrics.r2 !== undefined) {
+          const r2Group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+          r2Group.setAttribute('class', 'latent-r2-display');
+          r2Group.setAttribute('pointer-events', 'none');
+
+          const r2Val = metrics.r2.toFixed(3);
+
+          if (node.textInside) {
+            const r2Text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            r2Text.setAttribute('text-anchor', 'middle');
+            r2Text.setAttribute('dominant-baseline', 'central');
+            r2Text.setAttribute('y', 19);
+            r2Text.setAttribute('font-size', '10.5');
+            r2Text.setAttribute('font-weight', '600');
+            r2Text.setAttribute('font-family', 'var(--font-mono, monospace)');
+            r2Text.setAttribute('fill', '#ffffff');
+            r2Text.textContent = `R²: ${r2Val}`;
+            r2Group.appendChild(r2Text);
+          } else {
+            const r2Label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            r2Label.setAttribute('text-anchor', 'middle');
+            r2Label.setAttribute('dominant-baseline', 'central');
+            r2Label.setAttribute('y', -10);
+            r2Label.setAttribute('font-size', '9');
+            r2Label.setAttribute('font-weight', '600');
+            r2Label.setAttribute('font-family', 'var(--font-sans)');
+            r2Label.setAttribute('fill', 'rgba(255, 255, 255, 0.8)');
+            r2Label.textContent = 'R²';
+            r2Group.appendChild(r2Label);
+
+            const r2Text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            r2Text.setAttribute('text-anchor', 'middle');
+            r2Text.setAttribute('dominant-baseline', 'central');
+            r2Text.setAttribute('y', 8);
+            r2Text.setAttribute('font-size', '12.5');
+            r2Text.setAttribute('font-weight', '600');
+            r2Text.setAttribute('font-family', 'var(--font-mono, monospace)');
+            r2Text.setAttribute('fill', '#ffffff');
+            r2Text.textContent = r2Val;
+            r2Group.appendChild(r2Text);
+          }
+          g.appendChild(r2Group);
+        }
       } else if (node.isText) {
         const rectBox = node.rectBox || {width: 100, height: 40};
         
@@ -1128,11 +1453,60 @@ export function initModelCanvas() {
             path.setAttribute('stroke-width', '1.5');
             path.setAttribute('marker-end', 'url(#arrow-solid)');
             edgesLayer.appendChild(path);
+
+            // Measurement outer loading badge
+            const loading = getOuterLoading(parent, node);
+            if (loading !== null && loading !== undefined) {
+              const indMidX = (x1 + x2) / 2;
+              const indMidY = (y1 + y2) / 2;
+
+              const badgeG = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+              badgeG.setAttribute('class', 'edge-result-badge indicator-badge');
+              badgeG.setAttribute('transform', `translate(${indMidX}, ${indMidY})`);
+              badgeG.setAttribute('pointer-events', 'none');
+
+              const textVal = loading.toFixed(3);
+              const pillW = Math.max(30, textVal.length * 6.5 + 8);
+              const pillH = 15;
+
+              const bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+              bg.setAttribute('x', -pillW / 2);
+              bg.setAttribute('y', -pillH / 2);
+              bg.setAttribute('width', pillW);
+              bg.setAttribute('height', pillH);
+              bg.setAttribute('rx', '3');
+              bg.setAttribute('fill', 'var(--color-bg-primary, #ffffff)');
+              bg.setAttribute('stroke', 'var(--color-border-divider, #cbd5e1)');
+              bg.setAttribute('stroke-width', '0.75');
+              badgeG.appendChild(bg);
+
+              const txt = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+              txt.setAttribute('text-anchor', 'middle');
+              txt.setAttribute('dominant-baseline', 'central');
+              txt.setAttribute('font-size', '9.5');
+              txt.setAttribute('font-family', 'var(--font-mono, monospace)');
+              txt.setAttribute('font-weight', '500');
+              txt.setAttribute('fill', 'var(--color-text-secondary, #475569)');
+              txt.textContent = textVal;
+              badgeG.appendChild(txt);
+
+              edgesLayer.appendChild(badgeG);
+            }
           }
         }
       }
       
       // Interaction
+      if (node.isLatent) {
+        g.addEventListener('pointerenter', () => {
+          if (!activeResults) return;
+          const m = getConstructMetrics(node);
+          if (m) showLatentHoverPopup(node, m);
+        });
+        g.addEventListener('pointerleave', () => {
+          hideLatentHoverPopup();
+        });
+      }
       g.addEventListener('mousedown', (e) => handleNodeMouseDown(e, node));
       g.addEventListener('contextmenu', (e) => showContextMenu(e, node.id));
       g.addEventListener('dblclick', (e) => {
@@ -1321,6 +1695,7 @@ export function initModelCanvas() {
   let connectStartNode = null;
 
   function handleNodeMouseDown(e, node) {
+    hideLatentHoverPopup();
     e.stopPropagation();
     e.preventDefault();
     
@@ -2107,6 +2482,16 @@ export function initModelCanvas() {
   window.deleteSelectedModelPart = deleteSelected;
   window.canvasUndo = undo;
   window.canvasRedo = redo;
+  window.setCanvasResults = setCanvasResults;
+}
+
+export function setCanvasResults(results) {
+  if (typeof window !== 'undefined') {
+    window._canvasActiveResults = results;
+    if (window.setCanvasResults) {
+      window.setCanvasResults(results);
+    }
+  }
 }
 
 export function exportModelSpec() {

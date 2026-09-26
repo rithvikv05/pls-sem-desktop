@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../store';
-import { initModelCanvas, exportModelSpec, getModelCanvasState, loadModelCanvasState } from '../utils/model-canvas';
+import { initModelCanvas, exportModelSpec, getModelCanvasState, loadModelCanvasState, setCanvasResults } from '../utils/model-canvas';
 import { DataManagerModal } from '../components/DataManagerModal';
 import { BootstrapModal } from '../components/BootstrapModal';
 import type { ParsedDataset } from '../utils/dataset-parser';
@@ -199,6 +199,9 @@ const ModelEditor = () => {
       if (view === 'model') {
         (viewModel as HTMLElement).style.display = 'flex';
         (viewResults as HTMLElement).style.display = 'none';
+        if (plsResults) {
+          setCanvasResults(plsResults);
+        }
         if (sliderBg && sliderBtns && sliderBtns.length >= 2) {
           (sliderBg as HTMLElement).style.transform = 'translateX(0)';
           sliderBtns[0]?.classList.add('active');
@@ -287,6 +290,7 @@ const ModelEditor = () => {
 
       if (runRes.results) {
         setPlsResults(runRes.results);
+        setCanvasResults(runRes.results);
       }
 
       setValidationSuccessToast(`PLS-SEM Calculation Complete! Converged in ${runRes.results?.iterations || 0} iterations`);
@@ -305,12 +309,19 @@ const ModelEditor = () => {
       api.loadProjectResults(activeStudy.path, 'pls').then((res) => {
         if (res && res.results) {
           setPlsResults(res.results);
+          setCanvasResults(res.results);
           const viewSlider = document.getElementById('main-view-slider');
           if (viewSlider) {
             (viewSlider as HTMLElement).style.display = 'flex';
           }
+        } else {
+          setPlsResults(null);
+          setCanvasResults(null);
         }
-      }).catch(() => {});
+      }).catch(() => {
+        setPlsResults(null);
+        setCanvasResults(null);
+      });
     }
   }, [activeStudy?.path]);
 
@@ -594,6 +605,9 @@ const ModelEditor = () => {
           const modelRes = await api.loadProjectModel(activeStudy.path);
           if (modelRes && modelRes.diagram_layout) {
             loadModelCanvasState(modelRes.diagram_layout);
+            if (plsResults) {
+              setCanvasResults(plsResults);
+            }
           }
         } catch (err) {
           console.warn('Could not load saved model layout:', err);
