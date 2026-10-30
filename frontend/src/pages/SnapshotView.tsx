@@ -3007,16 +3007,45 @@ export const SnapshotView: React.FC = () => {
                                 </>
                               ) : (
                                 <>
-                                  <text
-                                    textAnchor="middle"
-                                    y={(node.r || 36) + 18}
-                                    fontSize="12"
-                                    fontWeight="600"
-                                    fill="var(--color-text-primary, #0f172a)"
-                                    style={{ userSelect: 'none' }}
-                                  >
-                                    {node.label}
-                                  </text>
+                                  {(() => {
+                                    const r = node.r || 36;
+                                    const textPos = node.textPosition || 'bottom';
+                                    let lx = 0;
+                                    let ly = r + 18;
+                                    let tAnchor: "middle" | "start" | "end" = "middle";
+
+                                    if (textPos === 'top') {
+                                      lx = 0;
+                                      ly = -r - 10;
+                                      tAnchor = "middle";
+                                    } else if (textPos === 'left') {
+                                      lx = -r - 10;
+                                      ly = 4;
+                                      tAnchor = "end";
+                                    } else if (textPos === 'right') {
+                                      lx = r + 10;
+                                      ly = 4;
+                                      tAnchor = "start";
+                                    } else { // 'bottom'
+                                      lx = 0;
+                                      ly = r + 18;
+                                      tAnchor = "middle";
+                                    }
+
+                                    return (
+                                      <text
+                                        x={lx}
+                                        y={ly}
+                                        textAnchor={tAnchor}
+                                        fontSize="12"
+                                        fontWeight="600"
+                                        fill="var(--color-text-primary, #0f172a)"
+                                        style={{ userSelect: 'none' }}
+                                      >
+                                        {node.label}
+                                      </text>
+                                    );
+                                  })()}
                                   {r2 !== undefined && (
                                     <text
                                       textAnchor="middle"
@@ -3037,8 +3066,29 @@ export const SnapshotView: React.FC = () => {
                                 const childInds = displayNodes.filter((n: any) => n.parentId === node.id && !n.isLatent);
                                 if (childInds.length === 0) return null;
                                 const labelLen = (node.label || '').length * 8;
-                                const eyeX = (labelLen / 2) + 12;
-                                const eyeY = node.textInside ? (r2 !== undefined ? -4 : 4) : ((node.r || 36) + 18);
+                                const r = node.r || 36;
+                                const textPos = node.textPosition || 'bottom';
+                                let eyeX = (labelLen / 2) + 12;
+                                let eyeY = r + 18;
+
+                                if (node.textInside) {
+                                  eyeX = (labelLen / 2) + 12;
+                                  eyeY = r2 !== undefined ? -4 : 4;
+                                } else {
+                                  if (textPos === 'top') {
+                                    eyeX = (labelLen / 2) + 12;
+                                    eyeY = -r - 10;
+                                  } else if (textPos === 'left') {
+                                    eyeX = -r - 10 + 12;
+                                    eyeY = 4;
+                                  } else if (textPos === 'right') {
+                                    eyeX = r + 10 + labelLen + 12;
+                                    eyeY = 4;
+                                  } else {
+                                    eyeX = (labelLen / 2) + 12;
+                                    eyeY = r + 18;
+                                  }
+                                }
                                 return (
                                   <g
                                     className="canvas-hidden-indicators-icon-btn"
@@ -3104,19 +3154,44 @@ export const SnapshotView: React.FC = () => {
                               >
                                 {node.label}
                               </text>
-                            ) : (
-                              <text
-                                x="35"
-                                y="42"
-                                textAnchor="middle"
-                                fontSize="11"
-                                fontWeight="500"
-                                fill="var(--color-text-primary, #0f172a)"
-                                style={{ userSelect: 'none' }}
-                              >
-                                {node.label}
-                              </text>
-                            )}
+                            ) : (() => {
+                              const pos = node.textPosition || 'bottom';
+                              let ix = 35;
+                              let iy = 42;
+                              let iAnchor: "middle" | "start" | "end" = "middle";
+
+                              if (pos === 'top') {
+                                ix = 35;
+                                iy = -8;
+                                iAnchor = "middle";
+                              } else if (pos === 'left') {
+                                ix = -8;
+                                iy = 18;
+                                iAnchor = "end";
+                              } else if (pos === 'right') {
+                                ix = 78;
+                                iy = 18;
+                                iAnchor = "start";
+                              } else { // 'bottom'
+                                ix = 35;
+                                iy = 42;
+                                iAnchor = "middle";
+                              }
+
+                              return (
+                                <text
+                                  x={ix}
+                                  y={iy}
+                                  textAnchor={iAnchor}
+                                  fontSize="11"
+                                  fontWeight="500"
+                                  fill="var(--color-text-primary, #0f172a)"
+                                  style={{ userSelect: 'none' }}
+                                >
+                                  {node.label}
+                                </text>
+                              );
+                            })()}
                           </g>
                         );
                       })}
