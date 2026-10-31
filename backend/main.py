@@ -1,4 +1,4 @@
-from fastapi import FastAPI, File, UploadFile, WebSocket, WebSocketDisconnect, Response
+from fastapi import FastAPI, File, UploadFile, WebSocket, WebSocketDisconnect, Response, Depends
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -81,7 +81,7 @@ from engine.pls.copula import analyze_gaussian_copula
 from engine.pls.nca import analyze_nca
 from engine.pls.predict import run_pls_predict
 from reporting.tables import TABLE_EXTRACTORS, export_table_to_format
-from reporting.narrative import generate_narrative_report
+from reporting.narrative import generate_narrative_report, generate_structured_narrative
 from reporting.pdf_export import generate_pdf_report
 
 
@@ -94,6 +94,23 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# License guard middleware: gates computation routes behind license validation.
+# In dev mode (default), this is a no-op pass-through.
+import license_guard
+
+@app.middleware("http")
+async def license_middleware(request, call_next):
+    """Check license for gated computation routes."""
+    if license_guard.is_gated_route(request.url.path):
+        try:
+            await license_guard.verify_license(request)
+        except Exception as e:
+            from fastapi.responses import JSONResponse
+            status = getattr(e, 'status_code', 403)
+            detail = getattr(e, 'detail', str(e))
+            return JSONResponse(status_code=status, content={"error": detail})
+    return await call_next(request)
 
 
 class SaveDataJsonRequest(BaseModel):
@@ -2925,6 +2942,32 @@ def api_export_report_pdf(req: PdfReportRequest):
         )
     except Exception as e:
         return {"error": str(e)}
+
+
+class NarrativeRequest(BaseModel):
+    results: Optional[Dict[str, Any]] = None
+    project_path: Optional[str] = None
+    model_id: Optional[str] = None
+    style: Optional[str] = "apa"
+    sections: Optional[List[str]] = None
+
+
+@app.post("/reporting/narrative")
+def api_generate_narrative(req: NarrativeRequest):
+    try:
+        results = req.results
+        if not results and req.project_path:
+            res_data = project_io.load_results(req.project_path, algorithm="pls", model_id=req.model_id)
+            if res_data:
+                results = res_data.get("results")
+        if not results:
+            return {"error": "No results provided or found in project"}
+
+        data = generate_structured_narrative(results, style=req.style or "apa")
+        return data
+    except Exception as e:
+        return {"error": str(e)}
+
 
 
 

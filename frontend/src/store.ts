@@ -2,6 +2,15 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { ParsedDataset } from './utils/dataset-parser';
 import { api } from './utils/api';
+import {
+  type LicenseStatus,
+  getLicenseStatus,
+  activateLicense,
+  deactivateLicense,
+  getMachineFingerprint,
+  devMintToken,
+  clearCachedToken,
+} from './utils/license';
 
 export type ShapeType = 'circle' | 'rect' | 'hexagon' | 'octagon';
 
@@ -161,6 +170,13 @@ interface AppState {
   openSettings: (tab?: 'about' | 'appearance' | 'calculation' | 'canvas') => void;
   isLicenseActive: boolean;
   setIsLicenseActive: (active: boolean) => void;
+  licenseStatus: LicenseStatus | null;
+  isLicenseLoading: boolean;
+  machineFingerprint: string;
+  loadLicenseStatus: () => Promise<void>;
+  activateLicenseKey: (tokenString: string) => Promise<{ success: boolean; error?: string }>;
+  deactivateLicenseKey: () => Promise<{ success: boolean; error?: string }>;
+  devMintLicense: (licensee: string, tier: string, mode: string, daysValid: number) => Promise<string>;
   isSidebarCollapsed: boolean;
   toggleSidebar: () => void;
   setSidebarCollapsed: (collapsed: boolean) => void;
@@ -334,6 +350,63 @@ export const useStore = create<AppState>()(
       openSettings: (tab = 'about') => set({ isSettingsOpen: true, settingsActiveTab: tab }),
       isLicenseActive: true,
       setIsLicenseActive: (active) => set({ isLicenseActive: active }),
+      licenseStatus: null,
+      isLicenseLoading: false,
+      machineFingerprint: '',
+      loadLicenseStatus: async () => {
+        set({ isLicenseLoading: true });
+        try {
+          const [status, fp] = await Promise.all([
+            getLicenseStatus(),
+            getMachineFingerprint().catch(() => ''),
+          ]);
+          set({
+            licenseStatus: status,
+            isLicenseActive: status.is_valid,
+            machineFingerprint: fp || status.machine_id,
+            isLicenseLoading: false,
+          });
+        } catch (err) {
+          console.error('[store] loadLicenseStatus error:', err);
+          set({ isLicenseLoading: false });
+        }
+      },
+      activateLicenseKey: async (tokenString: string) => {
+        set({ isLicenseLoading: true });
+        try {
+          const status = await activateLicense(tokenString);
+          clearCachedToken();
+          set({
+            licenseStatus: status,
+            isLicenseActive: status.is_valid,
+            isLicenseLoading: false,
+          });
+          return { success: status.is_valid, error: status.error || undefined };
+        } catch (err: any) {
+          set({ isLicenseLoading: false });
+          return { success: false, error: String(err?.message || err) };
+        }
+      },
+      deactivateLicenseKey: async () => {
+        set({ isLicenseLoading: true });
+        try {
+          await deactivateLicense();
+          clearCachedToken();
+          const status = await getLicenseStatus();
+          set({
+            licenseStatus: status,
+            isLicenseActive: status.is_valid,
+            isLicenseLoading: false,
+          });
+          return { success: true };
+        } catch (err: any) {
+          set({ isLicenseLoading: false });
+          return { success: false, error: String(err?.message || err) };
+        }
+      },
+      devMintLicense: async (licensee: string, tier: string, mode: string, daysValid: number) => {
+        return await devMintToken(licensee, tier, mode, daysValid);
+      },
       isSidebarCollapsed: false,
       toggleSidebar: () => set((state) => {
         if (state.settings.lockExpandedSidebar) {

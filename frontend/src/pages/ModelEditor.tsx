@@ -5,6 +5,8 @@ import { initModelCanvas, exportModelSpec, getModelCanvasState, loadModelCanvasS
 import { BootstrapModal } from '../components/BootstrapModal';
 import { AnalysisModal } from '../components/AnalysisModal';
 import { AdvancedResultPanels } from '../components/AdvancedResultPanels';
+import { HypothesisTestingPanel } from '../components/HypothesisTestingPanel';
+import { DiagramExportModal } from '../components/DiagramExportModal';
 import type { ParsedDataset } from '../utils/dataset-parser';
 import { parseDatasetFile, processData } from '../utils/dataset-parser';
 import { api, type ValidationResponse } from '../utils/api';
@@ -438,8 +440,10 @@ const ModelEditor = () => {
   const [snapshotName, setSnapshotName] = useState('');
   const [snapshotTargetStudyId, setSnapshotTargetStudyId] = useState<string>('');
   const [isSavingSnapshot, setIsSavingSnapshot] = useState(false);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
 
   useEffect(() => {
+    (window as any).openExportDiagramModal = () => setIsExportModalOpen(true);
     (window as any)._customClearCanvasHandler = (e: any) => {
       e?.preventDefault?.();
       e?.stopPropagation?.();
@@ -3257,6 +3261,18 @@ const ModelEditor = () => {
             <Trash2 size={16} color="#ef4444" />
           </div>
 
+          <div className="hud-divider" />
+          <div
+            className="hud-btn"
+            id="hud-export-diagram"
+            title="Export Publication Diagram (Vector SVG, 300/600 DPI, Journal B&W)"
+            onClick={() => setIsExportModalOpen(true)}
+            style={{ color: 'var(--color-accent)', padding: '0 8px', display: 'flex', alignItems: 'center', gap: 4 }}
+          >
+            <Download size={14} />
+            <span style={{ fontSize: 11, fontWeight: 600 }}>Export</span>
+          </div>
+
           {/* Popover confirmation matching canvas-hud pill dimensions & aesthetic */}
           {hudConfirm === 'reset' && (
             <div
@@ -3481,6 +3497,24 @@ const ModelEditor = () => {
                 onClick={(e) => { e.preventDefault(); setActiveResultTab('path_coefficients'); }}
               >
                 Path coefficients
+              </a>
+              <a
+                href="#"
+                className={`tree-item ${activeResultTab === 'hypotheses' ? 'active' : ''}`}
+                onClick={(e) => { e.preventDefault(); setActiveResultTab('hypotheses'); }}
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
+              >
+                <span>Hypotheses Testing</span>
+                <span style={{
+                  fontSize: 10,
+                  fontWeight: 700,
+                  padding: '1px 5px',
+                  borderRadius: 4,
+                  background: 'rgba(99, 102, 241, 0.15)',
+                  color: 'var(--color-accent)',
+                }}>
+                  APA
+                </span>
               </a>
               <a
                 href="#"
@@ -3998,6 +4032,11 @@ const ModelEditor = () => {
                 <h3 style={{ margin: '0 0 8px', fontSize: '16px', fontWeight: 600, color: '#334155' }}>No Results Calculated Yet</h3>
                 <p style={{ margin: 0, fontSize: '13px' }}>Return to the model canvas and click <strong>Calculate</strong> to run the PLS-SEM algorithm on your data.</p>
               </div>
+            ) : activeResultTab === 'hypotheses' ? (
+              <HypothesisTestingPanel
+                results={plsResults}
+                onExportExcel={handleExportExcel}
+              />
             ) : activeResultTab === 'path_coefficients' ? (
               getTableMode('path_coefficients') === 'matrix' ? (
                 <table className="scientific-table">
@@ -5074,6 +5113,14 @@ const ModelEditor = () => {
       setTimeout(() => setValidationSuccessToast(null), 3500);
     }}
     onClose={() => setIsAnalysisModalOpen(false)}
+  />
+
+  <DiagramExportModal
+    isOpen={isExportModalOpen}
+    onClose={() => setIsExportModalOpen(false)}
+    svgElement={typeof document !== 'undefined' ? (document.getElementById('model-svg') as unknown as SVGSVGElement) : null}
+    modelName={activeModel?.name || 'model_diagram'}
+    results={plsResults}
   />
 
   {/* ─── Validation Error Modal ─── */}

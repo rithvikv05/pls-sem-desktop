@@ -55,16 +55,14 @@ const GetStarted = () => {
     });
   };
 
-  const handleOpenWorkspaceItem = async (ws: { id: string; name: string; path?: string }) => {
-    if (ws.path) {
-      try {
-        await api.openWorkspace(ws.path);
-      } catch (err) {
-        console.warn('Failed opening workspace path:', err);
-      }
-    }
+  const handleOpenWorkspaceItem = (ws: { id: string; name: string; path?: string }) => {
     setActiveWorkspace(ws.id);
     openTab({ type: 'workspace', title: ws.name, workspaceId: ws.id });
+    if (ws.path) {
+      api.openWorkspace(ws.path).catch((err) => {
+        console.warn('Failed opening workspace path:', err);
+      });
+    }
   };
 
   const handleExportWorkspace = async (ws: { id: string; name: string; path?: string }) => {

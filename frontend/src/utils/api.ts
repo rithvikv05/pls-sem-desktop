@@ -1,4 +1,21 @@
+import { getCachedTokenString } from './license';
+
 const API_BASE = 'http://127.0.0.1:8721';
+
+const nativeFetch = window.fetch.bind(window);
+
+async function fetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  const headers = new Headers(init?.headers || {});
+  try {
+    const token = await getCachedTokenString();
+    if (token && !headers.has('X-License-Token')) {
+      headers.set('X-License-Token', token);
+    }
+  } catch {
+    // Ignore in case Tauri invoke fails or in browser environment
+  }
+  return nativeFetch(input, { ...init, headers });
+}
 
 export interface WorkspaceMetadata {
   name: string;
@@ -1660,6 +1677,31 @@ export const api = {
       return await res.blob();
     } catch (err: any) {
       return { error: err?.message || 'Failed to download PDF report' };
+    }
+  },
+
+  async generateNarrative(data: {
+    results?: any;
+    projectPath?: string;
+    modelId?: string;
+    style?: string;
+    sections?: string[];
+  }): Promise<{ full_text?: string; sections?: Record<string, { title: string; content: string }>; error?: string }> {
+    try {
+      const res = await fetch(`${API_BASE}/reporting/narrative`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          results: data.results,
+          project_path: data.projectPath,
+          model_id: data.modelId,
+          style: data.style || 'apa',
+          sections: data.sections,
+        }),
+      });
+      return await res.json();
+    } catch (err: any) {
+      return { error: err?.message || 'Failed to generate narrative report' };
     }
   },
 

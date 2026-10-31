@@ -4,6 +4,7 @@ import { useStore, getStudyDatasets, type Study } from '../store';
 import WorkspaceModal from '../components/WorkspaceModal';
 import StudyModal from '../components/StudyModal';
 import StudyWorkspaceDropdown from '../components/StudyWorkspaceDropdown';
+import { ModelComparisonModal } from '../components/ModelComparisonModal';
 import InputDialog from '../components/InputDialog';
 import { parseDatasetFile } from '../utils/dataset-parser';
 import type { ParsedDataset } from '../utils/dataset-parser';
@@ -43,8 +44,10 @@ const Dashboard = () => {
   }, [activeWorkspaceId, workspaces, setActiveWorkspace]);
 
   useEffect(() => {
-    studies.forEach(study => {
-      if (study.path) {
+    if (!activeWorkspaceId) return;
+    const wsStudies = studies.filter(s => s.workspaceId === activeWorkspaceId);
+    wsStudies.forEach(study => {
+      if (study.path && !snapshotsByStudy[study.path]) {
         api.listSnapshots(study.path).then(snaps => {
           if (Array.isArray(snaps)) {
             setStudySnapshots(study.path, snaps);
@@ -52,7 +55,7 @@ const Dashboard = () => {
         }).catch(() => {});
       }
     });
-  }, [studies]);
+  }, [activeWorkspaceId, studies, snapshotsByStudy, setStudySnapshots]);
 
   const [isWorkspaceModalOpen, setIsWorkspaceModalOpen] = useState(false);
   const [isWorkspaceSearchOpen, setIsWorkspaceSearchOpen] = useState(false);
@@ -62,6 +65,7 @@ const Dashboard = () => {
   const [expandedStudies, setExpandedStudies] = useState<Set<string>>(new Set());
   
   const [isStudyModalOpen, setIsStudyModalOpen] = useState(false);
+  const [comparisonStudy, setComparisonStudy] = useState<any | null>(null);
   const [workspaceDropdownConfig, setWorkspaceDropdownConfig] = useState<{
     isOpen: boolean;
     mode: 'move' | 'copy';
@@ -754,6 +758,12 @@ const Dashboard = () => {
                                   icon: 'add',
                                   action: () => { setModelModalStudyId(study.id); setModelName(''); setModelType('PLS-SEM'); setModelModalOpen(true); },
                                 },
+                                ...(studySnapshots.length >= 2 ? [{
+                                  id: 'compare-models',
+                                  label: 'Compare Models…',
+                                  icon: 'compare_arrows',
+                                  action: () => setComparisonStudy(study),
+                                }] : []),
                                 {
                                   id: 'new-study',
                                   label: 'New Study',
@@ -1303,6 +1313,15 @@ const Dashboard = () => {
           </div>
         </div>
       </div>
+      )}
+
+      {comparisonStudy && (
+        <ModelComparisonModal
+          isOpen={!!comparisonStudy}
+          onClose={() => setComparisonStudy(null)}
+          projectPath={comparisonStudy.path || ''}
+          studyName={comparisonStudy.name}
+        />
       )}
     </>
   );

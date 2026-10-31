@@ -184,17 +184,15 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({ activeNav }) => {
                 <div
                   key={ws.id}
                   className={`sidebar-item ${ws.id === activeWorkspaceId && activeNav === 'workspace' ? 'active' : ''}`}
-                  onClick={async () => {
+                  onClick={() => {
                     if (editingWsId !== ws.id) {
-                      if (ws.path) {
-                        try {
-                          await api.openWorkspace(ws.path);
-                        } catch (err) {
-                          console.warn('Failed opening workspace path:', err);
-                        }
-                      }
                       setActiveWorkspace(ws.id);
                       openTab({ type: 'workspace', title: ws.name, workspaceId: ws.id });
+                      if (ws.path) {
+                        api.openWorkspace(ws.path).catch((err) => {
+                          console.warn('Failed opening workspace path:', err);
+                        });
+                      }
                     }
                   }}
                   onContextMenu={(e) => {
