@@ -2898,7 +2898,7 @@ export function initModelCanvas() {
         txt.setAttribute('text-anchor', 'middle');
         txt.setAttribute('dominant-baseline', 'central');
         txt.setAttribute('font-size', '10.5');
-        txt.setAttribute('font-family', 'var(--font-mono, monospace)');
+        txt.setAttribute('font-family', 'var(--font-mono)');
         txt.setAttribute('font-weight', '600');
         txt.setAttribute('fill', 'var(--canvas-badge-text)');
         txt.style.fill = 'var(--canvas-badge-text)';
@@ -3102,7 +3102,7 @@ export function initModelCanvas() {
         txt.setAttribute('text-anchor', 'middle');
         txt.setAttribute('dominant-baseline', 'central');
         txt.setAttribute('font-size', '10.5');
-        txt.setAttribute('font-family', 'var(--font-mono, monospace)');
+        txt.setAttribute('font-family', 'var(--font-mono)');
         txt.setAttribute('font-weight', '600');
         txt.setAttribute('fill', 'var(--canvas-badge-text)');
         txt.style.fill = 'var(--canvas-badge-text)';
@@ -3349,7 +3349,7 @@ export function initModelCanvas() {
             r2Text.setAttribute('y', 19);
             r2Text.setAttribute('font-size', '10.5');
             r2Text.setAttribute('font-weight', '600');
-            r2Text.setAttribute('font-family', 'var(--font-mono, monospace)');
+            r2Text.setAttribute('font-family', 'var(--font-mono)');
             r2Text.setAttribute('fill', 'var(--canvas-latent-text)');
             r2Text.style.fill = 'var(--canvas-latent-text)';
             r2Text.textContent = `R²: ${r2Val}`;
@@ -3374,7 +3374,7 @@ export function initModelCanvas() {
             r2Text.setAttribute('y', 8);
             r2Text.setAttribute('font-size', '12.5');
             r2Text.setAttribute('font-weight', '600');
-            r2Text.setAttribute('font-family', 'var(--font-mono, monospace)');
+            r2Text.setAttribute('font-family', 'var(--font-mono)');
             r2Text.setAttribute('fill', 'var(--canvas-latent-text)');
             r2Text.style.fill = 'var(--canvas-latent-text)';
             r2Text.textContent = r2Val;
@@ -3802,7 +3802,7 @@ export function initModelCanvas() {
               txt.setAttribute('text-anchor', 'middle');
               txt.setAttribute('dominant-baseline', 'central');
               txt.setAttribute('font-size', '9.5');
-              txt.setAttribute('font-family', 'var(--font-mono, monospace)');
+              txt.setAttribute('font-family', 'var(--font-mono)');
               txt.setAttribute('font-weight', '500');
               txt.setAttribute('fill', 'var(--canvas-badge-text)');
               txt.textContent = textVal;

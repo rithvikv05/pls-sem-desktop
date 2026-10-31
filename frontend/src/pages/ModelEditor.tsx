@@ -1195,11 +1195,12 @@ const ModelEditor = () => {
   <meta charset="utf-8">
   <title>${activeModel?.name || 'Model'} Results - ${reportTabDetails.title}</title>
   <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 32px; color: #1e293b; }
-    h1 { margin-bottom: 4px; font-size: 20px; }
+    body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 32px; color: #1e293b; }
+    h1 { margin-bottom: 4px; font-size: 20px; font-weight: 600; }
     p { margin-top: 0; color: #64748b; font-size: 14px; margin-bottom: 24px; }
     table { width: 100%; border-collapse: collapse; font-size: 13px; }
     th, td { border: 1px solid #e2e8f0; padding: 8px 12px; text-align: left; }
+    td:not(:first-child) { font-family: 'JetBrains Mono', ui-monospace, monospace; font-variant-numeric: tabular-nums; }
     th { background: #f8fafc; font-weight: 600; }
     tr:nth-child(even) { background: #f8fafc; }
   </style>

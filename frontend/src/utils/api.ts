@@ -5,6 +5,7 @@ export interface WorkspaceMetadata {
   created_at: string;
   modified_at: string;
   projects: Array<{ path: string; name: string }>;
+  archived_projects?: Array<{ path: string; name: string; archived_at?: string }>;
 }
 
 export interface WorkspaceResponse {
@@ -156,6 +157,75 @@ export const api = {
       return await res.json();
     } catch (err: any) {
       return { error: err?.message || 'Failed to delete project' };
+    }
+  },
+
+  async archiveProject(folderPath: string, projectFilename: string): Promise<{ status?: string; workspace?: WorkspaceMetadata; new_path?: string; error?: string }> {
+    try {
+      const res = await fetch(
+        `${API_BASE}/workspace/archive-project?folder_path=${encodeURIComponent(folderPath)}&project_filename=${encodeURIComponent(projectFilename)}`,
+        { method: 'POST' }
+      );
+      return await res.json();
+    } catch (err: any) {
+      return { error: err?.message || 'Failed to archive project' };
+    }
+  },
+
+  async restoreProject(folderPath: string, projectFilename: string): Promise<{ status?: string; workspace?: WorkspaceMetadata; new_path?: string; error?: string }> {
+    try {
+      const res = await fetch(
+        `${API_BASE}/workspace/restore-project?folder_path=${encodeURIComponent(folderPath)}&project_filename=${encodeURIComponent(projectFilename)}`,
+        { method: 'POST' }
+      );
+      return await res.json();
+    } catch (err: any) {
+      return { error: err?.message || 'Failed to restore project' };
+    }
+  },
+
+  async deleteArchivedProject(folderPath: string, projectFilename: string): Promise<{ status?: string; workspace?: WorkspaceMetadata; error?: string }> {
+    try {
+      const res = await fetch(
+        `${API_BASE}/workspace/delete-archived-project?folder_path=${encodeURIComponent(folderPath)}&project_filename=${encodeURIComponent(projectFilename)}`,
+        { method: 'POST' }
+      );
+      return await res.json();
+    } catch (err: any) {
+      return { error: err?.message || 'Failed to delete archived project' };
+    }
+  },
+
+  async archiveWorkspace(folderPath: string): Promise<{ status?: string; old_path?: string; new_path?: string; name?: string; error?: string }> {
+    try {
+      const res = await fetch(
+        `${API_BASE}/workspace/archive?folder_path=${encodeURIComponent(folderPath)}`,
+        { method: 'POST' }
+      );
+      return await res.json();
+    } catch (err: any) {
+      return { error: err?.message || 'Failed to archive workspace' };
+    }
+  },
+
+  async restoreWorkspace(folderPath: string): Promise<{ status?: string; old_path?: string; new_path?: string; name?: string; error?: string }> {
+    try {
+      const res = await fetch(
+        `${API_BASE}/workspace/restore?folder_path=${encodeURIComponent(folderPath)}`,
+        { method: 'POST' }
+      );
+      return await res.json();
+    } catch (err: any) {
+      return { error: err?.message || 'Failed to restore workspace' };
+    }
+  },
+
+  async listArchivedWorkspaces(): Promise<{ status?: string; workspaces: Array<{ id: string; path: string; name: string; original_path?: string; archived_at?: string; project_count?: number }>; error?: string }> {
+    try {
+      const res = await fetch(`${API_BASE}/workspace/archived-list`);
+      return await res.json();
+    } catch (err: any) {
+      return { workspaces: [], error: err?.message || 'Failed to list archived workspaces' };
     }
   },
 

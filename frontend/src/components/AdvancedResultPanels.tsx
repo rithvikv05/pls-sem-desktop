@@ -608,7 +608,7 @@ export const AdvancedResultPanels: React.FC<AdvancedResultPanelsProps> = ({
                         <td style={{ padding: '10px 14px', textAlign: 'right', fontWeight: 600, color: isSig ? '#16a34a' : 'var(--color-text-secondary)' }}>
                           {eff.interaction_p_value !== null ? fmt(eff.interaction_p_value) : '—'}
                         </td>
-                        <td style={{ padding: '10px 14px', textAlign: 'center', fontFamily: 'monospace', fontSize: 11 }}>
+                        <td style={{ padding: '10px 14px', textAlign: 'center', fontFamily: 'var(--font-mono)', fontSize: 11 }}>
                           [{fmt(eff.interaction_ci_lower)}, {fmt(eff.interaction_ci_upper)}]
                         </td>
                         <td style={{ padding: '10px 14px', textAlign: 'right', fontWeight: 700, color: ratingColor }}>
@@ -871,7 +871,7 @@ export const AdvancedResultPanels: React.FC<AdvancedResultPanelsProps> = ({
                                 <td style={{ padding: '10px 16px', textAlign: 'right', fontWeight: 600, color: isRowSig ? '#16a34a' : 'var(--color-text-secondary)' }}>
                                   {row.p_value !== undefined ? fmt(row.p_value) : '—'}
                                 </td>
-                                <td style={{ padding: '10px 16px', textAlign: 'center', fontFamily: 'monospace', fontSize: 11 }}>
+                                <td style={{ padding: '10px 16px', textAlign: 'center', fontFamily: 'var(--font-mono)', fontSize: 11 }}>
                                   [{fmt(row.ci_lower)}, {fmt(row.ci_upper)}]
                                 </td>
                                 <td style={{ padding: '10px 16px', textAlign: 'right', color: 'var(--color-text-secondary)' }}>

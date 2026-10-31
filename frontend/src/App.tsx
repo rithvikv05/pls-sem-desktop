@@ -103,13 +103,15 @@ function App() {
 
   useEffect(() => {
     const fontMap: Record<string, string> = {
-      'Inter': "'Inter', sans-serif",
-      'Roboto': "'Roboto', sans-serif",
-      'JetBrains Mono': "'JetBrains Mono', monospace",
-      'System': "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
+      'Inter': "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
+      'Roboto': "'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+      'JetBrains Mono': "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+      'System': "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
     };
     if (settings.fontFamily && fontMap[settings.fontFamily]) {
-      document.body.style.fontFamily = fontMap[settings.fontFamily];
+      const activeFont = fontMap[settings.fontFamily];
+      document.body.style.fontFamily = activeFont;
+      document.documentElement.style.setProperty('--font-sans', activeFont);
     }
   }, [settings.fontFamily]);
 

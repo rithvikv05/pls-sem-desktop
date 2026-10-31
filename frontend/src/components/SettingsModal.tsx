@@ -559,12 +559,14 @@ export const SettingsModal: React.FC = () => {
                       const font = e.target.value as AppSettings['fontFamily'];
                       updateSettings({ fontFamily: font });
                       const fontMap: Record<string, string> = {
-                        'Inter': "'Inter', sans-serif",
-                        'Roboto': "'Roboto', sans-serif",
-                        'JetBrains Mono': "'JetBrains Mono', monospace",
-                        'System': 'system-ui, -apple-system, BlinkMacSystemFont, sans-serif',
+                        'Inter': "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
+                        'Roboto': "'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+                        'JetBrains Mono': "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+                        'System': "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
                       };
-                      document.body.style.fontFamily = fontMap[font] || font;
+                      const activeFont = fontMap[font] || font;
+                      document.body.style.fontFamily = activeFont;
+                      document.documentElement.style.setProperty('--font-sans', activeFont);
                     }}
                   >
                     <option value="Inter">Inter (Default)</option>

@@ -1273,6 +1273,65 @@ def delete_project_from_ws(folder_path: str, project_filename: str):
         return {"error": str(e)}
 
 
+@app.post("/workspace/archive-project")
+def archive_project_in_ws(folder_path: str, project_filename: str):
+    try:
+        ws = workspace_io.archive_project_in_workspace(folder_path, project_filename)
+        base_name = os.path.splitext(os.path.basename(project_filename))[0]
+        archived_entry = next((p for p in ws.get("archived_projects", []) if p.get("name") == base_name or os.path.basename(p.get("path", "")) == os.path.basename(project_filename)), None)
+        new_path = archived_entry.get("path") if archived_entry else None
+        return {"status": "archived", "workspace": ws, "new_path": new_path}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.post("/workspace/restore-project")
+def restore_project_in_ws(folder_path: str, project_filename: str):
+    try:
+        ws = workspace_io.restore_project_in_workspace(folder_path, project_filename)
+        base_name = os.path.splitext(os.path.basename(project_filename))[0]
+        restored_entry = next((p for p in ws.get("projects", []) if p.get("name") == base_name or os.path.basename(p.get("path", "")) == os.path.basename(project_filename)), None)
+        new_path = restored_entry.get("path") if restored_entry else None
+        return {"status": "restored", "workspace": ws, "new_path": new_path}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.post("/workspace/delete-archived-project")
+def delete_archived_project_from_ws(folder_path: str, project_filename: str):
+    try:
+        ws = workspace_io.delete_archived_project_from_workspace(folder_path, project_filename)
+        return {"status": "deleted", "workspace": ws}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.post("/workspace/archive")
+def archive_workspace_endpoint(folder_path: str):
+    try:
+        res = workspace_io.archive_workspace(folder_path)
+        return res
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.post("/workspace/restore")
+def restore_workspace_endpoint(folder_path: str):
+    try:
+        res = workspace_io.restore_workspace(folder_path)
+        return res
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.get("/workspace/archived-list")
+def list_archived_workspaces_endpoint():
+    try:
+        return {"status": "success", "workspaces": workspace_io.get_statsem_archived_workspaces()}
+    except Exception as e:
+        return {"error": str(e), "workspaces": []}
+
+
 class SmartPlsDetectRequest(BaseModel):
     folder_path: str
 

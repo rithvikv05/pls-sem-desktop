@@ -2816,7 +2816,7 @@ export const SnapshotView: React.FC = () => {
                                   textAnchor="middle"
                                   dominantBaseline="central"
                                   fontSize="9.5"
-                                  fontFamily="var(--font-mono, monospace)"
+                                  fontFamily="var(--font-mono)"
                                   fontWeight="500"
                                   fill="var(--canvas-badge-text, #0f172a)"
                                 >
@@ -2890,7 +2890,7 @@ export const SnapshotView: React.FC = () => {
                                 textAnchor="middle"
                                 dominantBaseline="central"
                                 fontSize="10.5"
-                                fontFamily="var(--font-mono, monospace)"
+                                fontFamily="var(--font-mono)"
                                 fontWeight="600"
                                 fill="var(--canvas-badge-text, #0f172a)"
                               >

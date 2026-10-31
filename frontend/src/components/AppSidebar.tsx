@@ -284,19 +284,34 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({ activeNav }) => {
                       )}
                     </span>
                     {!isSidebarCollapsed && (
-                      <button
-                        type="button"
-                        className={`sidebar-ws-pin-btn ${ws.isPinned ? 'active' : ''}`}
-                        title={ws.isPinned ? "Unpin workspace" : "Pin workspace to top"}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          togglePinWorkspace(ws.id);
-                        }}
-                      >
-                        <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>
-                          push_pin
-                        </span>
-                      </button>
+                      <span className="sidebar-ws-actions" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', marginLeft: 'auto', flexShrink: 0 }}>
+                        <button
+                          type="button"
+                          className="sidebar-ws-pin-btn"
+                          title="Archive workspace"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            archiveWorkspace(ws.id);
+                          }}
+                        >
+                          <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>
+                            inventory_2
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          className={`sidebar-ws-pin-btn ${ws.isPinned ? 'active' : ''}`}
+                          title={ws.isPinned ? "Unpin workspace" : "Pin workspace to top"}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            togglePinWorkspace(ws.id);
+                          }}
+                        >
+                          <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>
+                            push_pin
+                          </span>
+                        </button>
+                      </span>
                     )}
                   </span>
                 </div>
