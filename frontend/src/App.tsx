@@ -172,6 +172,10 @@ function App() {
         e.preventDefault();
         promptOpenWorkspaceFolder();
       }
+      if ((e.metaKey || e.ctrlKey) && e.key === ',') {
+        e.preventDefault();
+        useStore.getState().openSettings('appearance');
+      }
     };
     window.addEventListener('keydown', handleGlobalKeyDown);
 

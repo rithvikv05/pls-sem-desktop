@@ -466,12 +466,13 @@ export const SettingsModal: React.FC = () => {
                 <div className="settings-row" style={{ alignItems: 'flex-start', marginBottom: '16px' }}>
                   <div className="settings-row__label">
                     Sidebar Position
-                    <div className="settings-row__desc">Position the sidebar on the left or right side of the screen</div>
+                    <div className="settings-row__desc">Position the sidebar on the left or right side, or completely hide it</div>
                   </div>
-                  <div className="settings-theme-grid" style={{ gridTemplateColumns: 'repeat(2, 100px)', gap: '8px' }}>
+                  <div className="settings-theme-grid" style={{ gridTemplateColumns: 'repeat(3, 100px)', gap: '8px' }}>
                     {[
                       { id: 'left', label: 'Left', icon: 'dock_to_left' },
                       { id: 'right', label: 'Right', icon: 'dock_to_right' },
+                      { id: 'hidden', label: 'Hidden', icon: 'visibility_off' },
                     ].map((pos) => {
                       const isActive = (settings.sidebarPosition || 'left') === pos.id;
                       return (
@@ -494,7 +495,14 @@ export const SettingsModal: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="settings-row">
+                <div
+                  className="settings-row"
+                  style={{
+                    opacity: settings.sidebarPosition === 'hidden' ? 0.4 : 1,
+                    pointerEvents: settings.sidebarPosition === 'hidden' ? 'none' : 'auto',
+                    transition: 'opacity var(--transition-fast)',
+                  }}
+                >
                   <div className="settings-row__label">
                     Lock Expanded Sidebar
                     <div className="settings-row__desc">Keep the sidebar permanently open and prevent automatic collapsing</div>

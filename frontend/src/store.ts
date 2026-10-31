@@ -106,7 +106,7 @@ export interface AppSettings {
   keyboardLayout: 'qwerty' | 'azerty' | 'qwertz';
   flipOrientation: boolean;
   accentColor: string;
-  sidebarPosition: 'left' | 'right';
+  sidebarPosition: 'left' | 'right' | 'hidden';
   lockExpandedSidebar: boolean;
   canvasGrid?: 'dots' | 'grid' | 'blank';
   canvasBgColor?: string;

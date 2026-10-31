@@ -1854,6 +1854,10 @@ body.is-tab-sliding * {
 }
 
 /* ─── Sidebar Position Right & Locked State ─── */
+[data-sidebar-position="hidden"] .sidebar {
+  display: none !important;
+}
+
 [data-sidebar-position="right"] .sidebar {
   order: 10;
   border-right: none;

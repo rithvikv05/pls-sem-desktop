@@ -79,6 +79,10 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({ activeNav }) => {
     setEditingWsId(null);
   };
 
+  if (settings.sidebarPosition === 'hidden') {
+    return null;
+  }
+
   return (
     <>
       <aside className={`sidebar ${isSidebarCollapsed ? 'collapsed' : ''}`} id="sidebar">
